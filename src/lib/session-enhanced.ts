@@ -1,0 +1,542 @@
+import { Session, SessionNote, Message } from '@/types';
+import { ClaudeAPIHelper } from './claude-enhanced';
+
+export interface SessionMetrics {
+  totalMessages: number;
+  averageResponseTime: number;
+  notesGenerated: number;
+  sessionsThisWeek: number;
+  lastSessionDate: Date | null;
+}
+
+export interface SessionExportOptions {
+  includeMessages: boolean;
+  includeNotes: boolean;
+  includeSummary: boolean;
+  format: 'txt' | 'json' | 'csv';
+}
+
+export class EnhancedSessionStorage {
+  private static readonly STORAGE_KEY = 'financial_advisor_sessions';
+  private static readonly CURRENT_SESSION_KEY = 'financial_advisor_current_session';
+  private static readonly METRICS_KEY = 'financial_advisor_metrics';
+  
+  // Auto-note generation settings
+  private static autoNotesEnabled = true;
+  private static autoNotesDelay = 2000; // ms after message
+
+  // Session Management
+  static createNewSession(title?: string): Session {
+    const session: Session = {
+      id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      title: title || `Session ${new Date().toLocaleDateString()}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      messages: [],
+      notes: [],
+      isActive: true
+    };
+    
+    this.saveSession(session);
+    this.setCurrentSession(session.id);
+    this.updateMetrics();
+    
+    return session;
+  }
+
+  static saveSession(session: Session): void {
+    session.updatedAt = new Date();
+    const sessions = this.getAllSessions();
+    const existingIndex = sessions.findIndex(s => s.id === session.id);
+    
+    if (existingIndex >= 0) {
+      sessions[existingIndex] = session;
+    } else {
+      sessions.push(session);
+    }
+    
+    // Keep only last 50 sessions to avoid storage bloat
+    const sortedSessions = sessions.sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    const limitedSessions = sortedSessions.slice(0, 50);
+    
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(limitedSessions, this.dateReplacer));
+    } catch (error) {
+      console.error('Failed to save session:', error);
+      // If storage is full, remove oldest sessions and try again
+      const reducedSessions = limitedSessions.slice(0, 25);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(reducedSessions, this.dateReplacer));
+    }
+  }
+
+  static getSession(sessionId: string): Session | null {
+    const sessions = this.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    return session || null;
+  }
+
+  static getAllSessions(): Session[] {
+    try {
+      const sessionsData = localStorage.getItem(this.STORAGE_KEY);
+      if (!sessionsData) return [];
+      
+      const sessions = JSON.parse(sessionsData, this.dateReviver);
+      return Array.isArray(sessions) ? sessions : [];
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+      return [];
+    }
+  }
+
+  static getCurrentSession(): Session | null {
+    const currentSessionId = localStorage.getItem(this.CURRENT_SESSION_KEY);
+    if (!currentSessionId) return null;
+    
+    return this.getSession(currentSessionId);
+  }
+
+  static setCurrentSession(sessionId: string): void {
+    localStorage.setItem(this.CURRENT_SESSION_KEY, sessionId);
+  }
+
+  static deleteSession(sessionId: string): void {
+    const sessions = this.getAllSessions().filter(s => s.id !== sessionId);
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessions, this.dateReplacer));
+    
+    // Clear current session if it was deleted
+    const currentSessionId = localStorage.getItem(this.CURRENT_SESSION_KEY);
+    if (currentSessionId === sessionId) {
+      localStorage.removeItem(this.CURRENT_SESSION_KEY);
+    }
+    
+    this.updateMetrics();
+  }
+
+  // Message Management
+  static addMessage(sessionId: string, message: Message): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    session.messages.push(message);
+    this.saveSession(session);
+    
+    // Trigger auto-note generation if enabled
+    if (this.autoNotesEnabled && (message.type === 'assistant' || message.sender === 'assistant')) {
+      this.scheduleAutoNoteGeneration(sessionId, message);
+    }
+  }
+
+  static updateMessage(sessionId: string, messageId: string, content: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    const message = session.messages.find(m => m.id === messageId);
+    if (message) {
+      message.content = content;
+      message.timestamp = new Date();
+      this.saveSession(session);
+    }
+  }
+
+  static deleteMessage(sessionId: string, messageId: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    session.messages = session.messages.filter(m => m.id !== messageId);
+    this.saveSession(session);
+  }
+
+  // Note Management
+  static addNote(sessionId: string, noteData: Omit<SessionNote, 'id' | 'timestamp' | 'autoGenerated'>): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    const note: SessionNote = {
+      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      autoGenerated: false,
+      priority: 'medium',
+      ...noteData
+    };
+    
+    session.notes.push(note);
+    this.saveSession(session);
+    this.updateMetrics();
+  }
+
+  static updateNote(sessionId: string, noteId: string, content: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    const note = session.notes.find(n => n.id === noteId);
+    if (note) {
+      note.content = content;
+      note.timestamp = new Date();
+      this.saveSession(session);
+    }
+  }
+
+  static deleteNote(sessionId: string, noteId: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    session.notes = session.notes.filter(n => n.id !== noteId);
+    this.saveSession(session);
+    this.updateMetrics();
+  }
+
+  // Auto-Note Generation
+  private static autoNoteTimeouts = new Map<string, NodeJS.Timeout>();
+
+  static scheduleAutoNoteGeneration(sessionId: string, assistantMessage: Message): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+    
+    // Find the most recent user message before this assistant message
+    const messages = session.messages;
+    const assistantIndex = messages.findIndex(m => m.id === assistantMessage.id);
+    const userMessage = messages.slice(0, assistantIndex).reverse().find(m => (m.type === 'user' || m.sender === 'user'));
+    
+    if (!userMessage) return;
+    
+    // Clear any existing timeout for this session
+    const existingTimeout = this.autoNoteTimeouts.get(sessionId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+    
+    // Schedule auto-note generation
+    const timeout = setTimeout(async () => {
+      try {
+        const autoNotes = await ClaudeAPIHelper.generateAutoNotes(
+          userMessage.content,
+          assistantMessage.content
+        );
+        
+        if (autoNotes.length > 0) {
+          const currentSession = this.getSession(sessionId);
+          if (currentSession) {
+            currentSession.notes.push(...autoNotes);
+            this.saveSession(currentSession);
+            this.updateMetrics();
+          }
+        }
+      } catch (error) {
+        console.error('Auto-note generation failed:', error);
+      } finally {
+        this.autoNoteTimeouts.delete(sessionId);
+      }
+    }, this.autoNotesDelay);
+    
+    this.autoNoteTimeouts.set(sessionId, timeout);
+  }
+
+  static setAutoNotesEnabled(enabled: boolean): void {
+    this.autoNotesEnabled = enabled;
+    localStorage.setItem('auto_notes_enabled', enabled.toString());
+  }
+
+  static isAutoNotesEnabled(): boolean {
+    const stored = localStorage.getItem('auto_notes_enabled');
+    return stored !== null ? stored === 'true' : this.autoNotesEnabled;
+  }
+
+  // Session Summary Management
+  static async generateSessionSummary(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (!session || session.messages.length === 0) return;
+    
+    try {
+      const summary = await ClaudeAPIHelper.generateSessionSummary(session.messages);
+      session.summary = summary;
+      this.saveSession(session);
+    } catch (error) {
+      console.error('Failed to generate session summary:', error);
+    }
+  }
+
+  // Export Functions
+  static exportSession(sessionId: string, options: Partial<SessionExportOptions> = {}): string {
+    const session = this.getSession(sessionId);
+    if (!session) throw new Error('Session not found');
+    
+    const exportOptions: SessionExportOptions = {
+      includeMessages: true,
+      includeNotes: true,
+      includeSummary: true,
+      format: 'txt',
+      ...options
+    };
+    
+    switch (exportOptions.format) {
+      case 'json':
+        return this.exportAsJSON(session, exportOptions);
+      case 'csv':
+        return this.exportAsCSV(session, exportOptions);
+      default:
+        return this.exportAsText(session, exportOptions);
+    }
+  }
+
+  private static exportAsText(session: Session, options: SessionExportOptions): string {
+    let content = `Financial Counseling Session Export\n`;
+    content += `=====================================\n\n`;
+    content += `Session: ${session.title}\n`;
+    content += `Date: ${session.createdAt.toLocaleDateString()}\n`;
+    content += `Duration: ${this.getSessionDuration(session)}\n\n`;
+    
+    if (options.includeSummary && session.summary) {
+      content += `SESSION SUMMARY\n`;
+      content += `---------------\n`;
+      content += `${session.summary}\n\n`;
+    }
+    
+    if (options.includeMessages && session.messages.length > 0) {
+      content += `CONVERSATION TRANSCRIPT\n`;
+      content += `----------------------\n`;
+      session.messages.forEach((message) => {
+        const speaker = (message.type === 'user' || message.sender === 'user') ? 'Client' : 'Sanjay (Advisor)';
+        const time = message.timestamp.toLocaleTimeString();
+        content += `[${time}] ${speaker}: ${message.content}\n\n`;
+      });
+    }
+    
+    if (options.includeNotes && session.notes.length > 0) {
+      content += `THERAPIST NOTES\n`;
+      content += `---------------\n`;
+      session.notes.forEach((note) => {
+        const time = note.timestamp.toLocaleTimeString();
+        const type = note.type.toUpperCase();
+        const auto = note.autoGenerated ? ' (Auto-generated)' : '';
+        content += `[${time}] ${type}${auto}: ${note.content}\n\n`;
+      });
+    }
+    
+    content += `\nExport generated on ${new Date().toLocaleString()}\n`;
+    return content;
+  }
+
+  private static exportAsJSON(session: Session, options: SessionExportOptions): string {
+    const exportData: {
+      sessionInfo: {
+        id: string;
+        title: string;
+        createdAt: Date;
+        updatedAt: Date;
+        duration: string;
+      };
+      exportedAt: Date;
+      options: SessionExportOptions;
+      summary?: string;
+      messages?: Message[];
+      notes?: SessionNote[];
+    } = {
+      sessionInfo: {
+        id: session.id,
+        title: session.title,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        duration: this.getSessionDuration(session)
+      },
+      exportedAt: new Date(),
+      options: options
+    };
+    
+    if (options.includeSummary && session.summary) {
+      exportData.summary = session.summary;
+    }
+    
+    if (options.includeMessages) {
+      exportData.messages = session.messages;
+    }
+    
+    if (options.includeNotes) {
+      exportData.notes = session.notes;
+    }
+    
+    return JSON.stringify(exportData, null, 2);
+  }
+
+  private static exportAsCSV(session: Session, options: SessionExportOptions): string {
+    let csv = 'Timestamp,Type,Speaker/Category,Content,Auto-Generated\n';
+    
+    const allItems: Array<{
+      timestamp: Date;
+      type: 'message' | 'note';
+      speaker: string;
+      content: string;
+      autoGenerated: boolean;
+    }> = [];
+    
+    if (options.includeMessages) {
+      session.messages.forEach(msg => {
+        allItems.push({
+          timestamp: msg.timestamp,
+          type: 'message',
+          speaker: (msg.type === 'user' || msg.sender === 'user') ? 'Client' : 'Sanjay',
+          content: msg.content,
+          autoGenerated: false
+        });
+      });
+    }
+    
+    if (options.includeNotes) {
+      session.notes.forEach(note => {
+        allItems.push({
+          timestamp: note.timestamp,
+          type: 'note',
+          speaker: note.type,
+          content: note.content,
+          autoGenerated: note.autoGenerated || false
+        });
+      });
+    }
+    
+    // Sort by timestamp
+    allItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    allItems.forEach(item => {
+      const timestamp = item.timestamp.toISOString();
+      const content = `"${item.content.replace(/"/g, '""')}"`;
+      csv += `${timestamp},${item.type},${item.speaker},${content},${item.autoGenerated}\n`;
+    });
+    
+    return csv;
+  }
+
+  // Analytics and Metrics
+  static updateMetrics(): void {
+    const sessions = this.getAllSessions();
+    const now = new Date();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    
+    const metrics: SessionMetrics = {
+      totalMessages: sessions.reduce((total, session) => total + session.messages.length, 0),
+      averageResponseTime: this.calculateAverageResponseTime(sessions),
+      notesGenerated: sessions.reduce((total, session) => total + session.notes.length, 0),
+      sessionsThisWeek: sessions.filter(session => 
+        new Date(session.createdAt) >= weekStart
+      ).length,
+      lastSessionDate: sessions.length > 0 
+        ? new Date(Math.max(...sessions.map(s => new Date(s.updatedAt).getTime())))
+        : null
+    };
+    
+    localStorage.setItem(this.METRICS_KEY, JSON.stringify(metrics, this.dateReplacer));
+  }
+
+  static getMetrics(): SessionMetrics {
+    try {
+      const metricsData = localStorage.getItem(this.METRICS_KEY);
+      if (!metricsData) {
+        this.updateMetrics();
+        return this.getMetrics();
+      }
+      
+      return JSON.parse(metricsData, this.dateReviver);
+    } catch (error) {
+      console.error('Failed to load metrics:', error);
+      return {
+        totalMessages: 0,
+        averageResponseTime: 0,
+        notesGenerated: 0,
+        sessionsThisWeek: 0,
+        lastSessionDate: null
+      };
+    }
+  }
+
+  private static calculateAverageResponseTime(sessions: Session[]): number {
+    let totalTime = 0;
+    let pairs = 0;
+    
+    sessions.forEach(session => {
+      for (let i = 1; i < session.messages.length; i++) {
+        const current = session.messages[i];
+        const previous = session.messages[i - 1];
+        
+        const currentIsUser = current.type === 'user' || current.sender === 'user';
+        const previousIsUser = previous.type === 'user' || previous.sender === 'user';
+        
+        if (currentIsUser !== previousIsUser) {
+          const timeDiff = new Date(current.timestamp).getTime() - new Date(previous.timestamp).getTime();
+          totalTime += timeDiff;
+          pairs++;
+        }
+      }
+    });
+    
+    return pairs > 0 ? totalTime / pairs : 0;
+  }
+
+  private static getSessionDuration(session: Session): string {
+    if (session.messages.length < 2) return '0 minutes';
+    
+    const start = new Date(session.messages[0].timestamp);
+    const end = new Date(session.messages[session.messages.length - 1].timestamp);
+    const durationMs = end.getTime() - start.getTime();
+    const minutes = Math.round(durationMs / 60000);
+    
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  }
+
+  // Utility functions for JSON serialization with Date objects
+  private static dateReplacer(key: string, value: unknown): unknown {
+    if (value instanceof Date) {
+      return { __type: 'Date', value: value.toISOString() };
+    }
+    return value;
+  }
+
+  private static dateReviver(key: string, value: unknown): unknown {
+    // Handle explicitly marked Date objects
+    if (typeof value === 'object' && value !== null && 
+        (value as { __type?: string }).__type === 'Date') {
+      return new Date((value as { value: string }).value);
+    }
+    
+    // Handle date fields by key name and ISO string format
+    if (typeof value === 'string' && 
+        (key === 'createdAt' || key === 'updatedAt' || key === 'timestamp' || key === 'lastSessionDate') &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      return new Date(value);
+    }
+    
+    return value;
+  }
+
+  // Cleanup and Maintenance
+  static clearAllSessions(): void {
+    localStorage.removeItem(this.STORAGE_KEY);
+    localStorage.removeItem(this.CURRENT_SESSION_KEY);
+    localStorage.removeItem(this.METRICS_KEY);
+    
+    // Clear any pending timeouts
+    this.autoNoteTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.autoNoteTimeouts.clear();
+  }
+
+  static cleanupOldSessions(olderThanDays: number = 30): number {
+    const sessions = this.getAllSessions();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    
+    const activeSessions = sessions.filter(session => 
+      new Date(session.updatedAt) >= cutoffDate
+    );
+    
+    const removedCount = sessions.length - activeSessions.length;
+    
+    if (removedCount > 0) {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(activeSessions, this.dateReplacer));
+      this.updateMetrics();
+    }
+    
+    return removedCount;
+  }
+}
+
+// Alias for backward compatibility
+export const SessionStorage = EnhancedSessionStorage;

@@ -22,15 +22,7 @@ export class SessionStorage {
       updatedAt: new Date()
     };
 
-    // Add initial greeting
-    const greetingMessage: Message = {
-      id: `msg_${Date.now()}`,
-      type: 'assistant',
-      content: `Hello! I'm Sanjay Bhargava, your financial advisor. I'm here to help you achieve Zero Financial Anxiety through practical, data-driven guidance. Whether you're dealing with Social Security decisions, retirement planning, investment strategies, or any other financial challenge, I'm here to provide personalized advice based on my experience at PayPal and years in financial technology. What would you like to discuss today?`,
-      timestamp: new Date()
-    };
-
-    session.messages.push(greetingMessage);
+    // Session starts empty - no hardcoded greeting
     return session;
   }
 
@@ -167,7 +159,7 @@ export class SessionStorage {
     if (!session) return '';
 
     const content = [
-      `Financial Advisory Session: ${session.title}`,
+      `Retirement Planning Session: ${session.title}`,
       `Date: ${session.createdAt.toLocaleDateString()}`,
       `Duration: ${session.createdAt.toLocaleTimeString()} - ${session.updatedAt.toLocaleTimeString()}`,
       '',

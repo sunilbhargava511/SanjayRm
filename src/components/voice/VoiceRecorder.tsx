@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square } from 'lucide-react';
-import { VoiceRecorder as VoiceRecorderClass } from '@/lib/voice';
+import { VoiceInputService } from '@/lib/voice-services';
 
 interface VoiceRecorderProps {
   onTranscriptChange: (transcript: string) => void;
@@ -19,40 +19,25 @@ export default function VoiceRecorder({
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
-  const voiceRecorderRef = useRef<VoiceRecorderClass | null>(null);
+  const voiceInputRef = useRef<VoiceInputService | null>(null);
 
   useEffect(() => {
-    // Initialize voice recorder
-    const recorder = new VoiceRecorderClass(
-      (newTranscript) => {
-        setTranscript(newTranscript);
-        onTranscriptChange(newTranscript);
-      },
-      (recordingState) => {
-        setIsRecording(recordingState);
-        if (!recordingState) {
-          // Recording stopped, finalize transcript
-          const currentTranscript = transcript || '';
-          if (currentTranscript) {
-            onRecordingComplete(currentTranscript);
-          }
-        }
-      },
-      (errorMessage) => {
-        setError(errorMessage);
-        setIsRecording(false);
-      }
-    );
+    // Initialize voice input service
+    const voiceInput = new VoiceInputService({
+      language: 'en-US',
+      continuous: true,
+      interimResults: true
+    });
 
-    voiceRecorderRef.current = recorder;
-    setIsSupported(recorder.isSupported());
+    voiceInputRef.current = voiceInput;
+    setIsSupported(voiceInput.isSupported());
 
     return () => {
-      if (recorder.isRecording()) {
-        recorder.stopRecording();
+      if (voiceInput.isCurrentlyListening()) {
+        voiceInput.stopListening();
       }
     };
-  }, [onTranscriptChange, onRecordingComplete, transcript]);
+  }, []);
 
   useEffect(() => {
     // Reset transcript when recording starts
@@ -62,17 +47,37 @@ export default function VoiceRecorder({
     }
   }, [isRecording]);
 
-  const handleStartRecording = () => {
-    if (!voiceRecorderRef.current || disabled) return;
+  const handleStartRecording = async () => {
+    if (!voiceInputRef.current || disabled) return;
     
     setError(null);
-    voiceRecorderRef.current.startRecording();
+    setTranscript('');
+    
+    await voiceInputRef.current.startListening(
+      (newTranscript, isFinal) => {
+        setTranscript(newTranscript);
+        onTranscriptChange(newTranscript);
+        
+        if (isFinal && newTranscript.trim()) {
+          onRecordingComplete(newTranscript.trim());
+        }
+      },
+      (errorMessage) => {
+        setError(errorMessage);
+        setIsRecording(false);
+      },
+      () => {
+        setIsRecording(false);
+      }
+    );
+    
+    setIsRecording(true);
   };
 
   const handleStopRecording = () => {
-    if (!voiceRecorderRef.current) return;
+    if (!voiceInputRef.current) return;
     
-    voiceRecorderRef.current.stopRecording();
+    voiceInputRef.current.stopListening();
   };
 
   const toggleRecording = () => {

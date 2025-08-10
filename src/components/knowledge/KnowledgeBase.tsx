@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, BookOpen, Clock, Tag, ArrowLeft, Filter, X } from 'lucide-react';
 import { Article } from '@/types';
-import articlesData from '@/data/articles.json';
 
 interface KnowledgeBaseProps {
   onBack?: () => void;
@@ -16,10 +15,8 @@ export default function KnowledgeBase({ onBack, onArticleSelect }: KnowledgeBase
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   
-  const articles = articlesData.map(article => ({
-    ...article,
-    lastUpdated: new Date(article.lastUpdated)
-  })) as Article[];
+  // Initialize with empty array since we no longer have articles.json
+  const articles: Article[] = [];
   
   // Get unique categories
   const categories = useMemo(() => {

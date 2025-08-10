@@ -71,7 +71,6 @@ src/
 │   ├── notebook/          # Session notebook components
 │   └── knowledge/         # Knowledge base components
 ├── data/                  # Static data files
-│   ├── articles.json      # Financial knowledge base
 │   └── prompts.json       # AI prompts and templates
 ├── lib/                   # Utility libraries
 │   ├── claude.ts          # Claude API integration
@@ -97,10 +96,9 @@ src/
 - Session summaries generated on demand
 
 ### Knowledge Integration
-- 6 comprehensive articles covering Sanjay's key strategies
-- Articles inform AI responses with specific, actionable advice
-- Smart search matches user queries to relevant content
-- Categories: Social Security, Investing, Retirement, Estate Planning, etc.
+- Knowledge base powered by dynamic document loading
+- AI responses informed by uploaded knowledge documents
+- Smart search for relevant content matching
 
 ## 🚀 Deployment
 

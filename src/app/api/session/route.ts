@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClaudeService } from '@/lib/claude';
+import { getClaudeService } from '@/lib/claude-enhanced';
 import { Message } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -31,6 +31,18 @@ export async function POST(request: NextRequest) {
         
         const notes = await claudeService.extractSessionNotes(userMessage, assistantMessage);
         return NextResponse.json({ notes, success: true });
+
+      case 'generateAutoNotes':
+        const { userMessage: userMsg, assistantMessage: assistantMsg } = data;
+        if (!userMsg || !assistantMsg) {
+          return NextResponse.json(
+            { error: 'Both userMessage and assistantMessage are required' },
+            { status: 400 }
+          );
+        }
+        
+        const autoNotes = await claudeService.generateAutoTherapistNotes(userMsg, assistantMsg);
+        return NextResponse.json({ notes: autoNotes, success: true });
 
       default:
         return NextResponse.json(

@@ -6,7 +6,6 @@ import {
   BookOpen, 
   History, 
   User, 
-  ChevronRight,
   Mic,
   Bot,
   Sparkles,
@@ -14,11 +13,12 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Session } from '@/types';
-import { SessionStorage } from '@/lib/sessionStorage';
+import { EnhancedSessionStorage } from '@/lib/session-enhanced';
 import ChatInterface from '@/components/chat/ChatInterface';
+import VoiceSessionInterface from '@/components/VoiceSessionInterface';
 import KnowledgeBase from '@/components/knowledge/KnowledgeBase';
 
-type ViewType = 'home' | 'chat' | 'knowledge' | 'sessions';
+type ViewType = 'home' | 'chat' | 'voice' | 'knowledge' | 'sessions';
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
@@ -26,14 +26,13 @@ export default function HomePage() {
 
   useEffect(() => {
     // Load recent sessions
-    const sessions = SessionStorage.getAllSessions().slice(0, 5);
+    const sessions = EnhancedSessionStorage.getAllSessions().slice(0, 5);
     setRecentSessions(sessions);
   }, []);
 
   const handleStartNewSession = () => {
-    const newSession = SessionStorage.createNewSession();
-    SessionStorage.saveSession(newSession);
-    setCurrentView('chat');
+    EnhancedSessionStorage.createNewSession();
+    setCurrentView('voice');
   };
 
   const handleLoadSession = () => {
@@ -42,9 +41,9 @@ export default function HomePage() {
 
   const features = [
     {
-      icon: <MessageCircle className="w-6 h-6" />,
-      title: 'Voice & Chat',
-      description: 'Talk or type your financial questions',
+      icon: <Mic className="w-6 h-6" />,
+      title: 'Voice-First Interaction',
+      description: 'Natural conversations with your AI advisor',
       color: 'bg-blue-100 text-blue-600'
     },
     {
@@ -55,8 +54,8 @@ export default function HomePage() {
     },
     {
       icon: <BookOpen className="w-6 h-6" />,
-      title: 'Session Notebook',
-      description: 'Automatic notes and insights tracking',
+      title: 'Interactive Transcript',
+      description: 'Real-time conversation notes and insights',
       color: 'bg-purple-100 text-purple-600'
     },
     {
@@ -75,6 +74,10 @@ export default function HomePage() {
     'Tax Efficiency',
     'Financial Psychology'
   ];
+
+  if (currentView === 'voice') {
+    return <VoiceSessionInterface onBack={() => setCurrentView('home')} />;
+  }
 
   if (currentView === 'chat') {
     return <ChatInterface onBack={() => setCurrentView('home')} />;
@@ -95,8 +98,8 @@ export default function HomePage() {
                 <Bot className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Sanjay's Financial Advisor</h1>
-                <p className="text-gray-600">AI-powered financial coaching with voice interaction</p>
+                <h1 className="text-2xl font-bold text-gray-900">AI Version of Sanjay Bhargava</h1>
+                <p className="text-gray-600">Retirement planning specialist with voice interaction</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -140,29 +143,38 @@ export default function HomePage() {
             Meet Sanjay Bhargava
           </h2>
           <p className="text-xl text-gray-600 mb-2">
-            Your AI Financial Advisor
+AI Retirement Planning Specialist
           </p>
           <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
-            Former PayPal executive offering data-driven, practical financial guidance. 
+            PayPal founding member and former SpaceX India head offering data-driven, practical financial guidance. 
             Specializing in achieving &quot;Zero Financial Anxiety&quot; through personalized strategies.
           </p>
           
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-col items-center gap-6">
             <button
               onClick={handleStartNewSession}
-              className="flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
+              className="flex items-center gap-3 px-12 py-6 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-colors shadow-2xl hover:shadow-3xl transform hover:scale-105 relative overflow-hidden group"
             >
-              <MessageCircle className="w-6 h-6" />
-              Start Voice Session
-              <ChevronRight className="w-5 h-5" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Mic className="w-8 h-8 relative z-10" />
+              <span className="relative z-10">Start Voice Session</span>
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse relative z-10"></div>
             </button>
-            <button
-              onClick={() => setCurrentView('knowledge')}
-              className="flex items-center gap-3 px-8 py-4 bg-white text-gray-900 border-2 border-gray-300 rounded-xl font-semibold hover:border-blue-500 hover:text-blue-600 transition-colors"
-            >
-              <BookOpen className="w-6 h-6" />
-              Browse Articles
-            </button>
+            
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Voice Recognition Active</span>
+              </div>
+              <div className="w-1 h-4 bg-gray-300"></div>
+              <button
+                onClick={() => setCurrentView('knowledge')}
+                className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+                Browse Articles
+              </button>
+            </div>
           </div>
         </div>
 

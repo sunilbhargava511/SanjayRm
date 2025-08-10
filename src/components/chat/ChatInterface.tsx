@@ -240,7 +240,11 @@ export default function ChatInterface({ onBack }: ChatInterfaceProps) {
             </div>
             <div>
               <h1 className="font-semibold text-lg text-gray-900">Sanjay Bhargava</h1>
-              <p className="text-sm text-gray-500">Financial Advisor • Zero Financial Anxiety</p>
+              <p className="text-sm text-gray-500">Financial Therapist • Voice Session Active</p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-600">Listening & Recording</span>
+              </div>
             </div>
           </div>
           <button
@@ -353,17 +357,34 @@ export default function ChatInterface({ onBack }: ChatInterfaceProps) {
             </div>
           )}
 
-          {/* Input Area */}
+          {/* Voice-First Input Area */}
           <div className="border-t border-gray-200 bg-white">
-            <div className="max-w-3xl mx-auto p-4">
-              <div className="mb-3">
+            <div className="max-w-3xl mx-auto p-6">
+              {/* Primary Voice Interface */}
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Voice Session Active</h3>
+                  <p className="text-sm text-gray-600">Speak naturally - I'll transcribe and respond</p>
+                </div>
                 <VoiceRecorder
                   onTranscriptChange={handleVoiceTranscriptChange}
                   onRecordingComplete={handleVoiceRecordingComplete}
                   disabled={isLoading}
                 />
               </div>
+
+              {/* Live Transcript Display */}
+              {voiceTranscript && (
+                <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Volume2 className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-700">Live Transcript</span>
+                  </div>
+                  <p className="text-gray-800 leading-relaxed">{voiceTranscript}</p>
+                </div>
+              )}
               
+              {/* Secondary Text Input */}
               <div className="flex gap-3">
                 <input
                   ref={inputRef}
@@ -371,9 +392,9 @@ export default function ChatInterface({ onBack }: ChatInterfaceProps) {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask me about your finances, or use voice..."
+                  placeholder="Or type your message here..."
                   disabled={isLoading}
-                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                  className="flex-1 px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 text-sm"
                 />
                 <button
                   onClick={() => handleSendMessage(undefined, isVoiceInput)}
@@ -385,9 +406,11 @@ export default function ChatInterface({ onBack }: ChatInterfaceProps) {
               </div>
               
               {isVoiceInput && (
-                <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
-                  <Volume2 className="w-3 h-3" />
-                  Voice input detected - message will be cleaned up by AI
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-700">
+                    <Volume2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Voice input processing - message will be optimized for clarity</span>
+                  </div>
                 </div>
               )}
             </div>

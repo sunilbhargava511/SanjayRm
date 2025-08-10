@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClaudeService } from '@/lib/claude';
+import { getClaudeService } from '@/lib/claude-enhanced';
 import { Message } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, query, isVoiceInput } = await request.json();
+    const { messages, query, generateIntro } = await request.json();
+
+    const claudeService = getClaudeService();
+
+    // Handle introduction generation for new sessions
+    if (generateIntro) {
+      const introMessage = "Hi! I'm the AI version of Sanjay Bhargava, founding member of PayPal. What brings you here today?";
+      
+      return NextResponse.json({
+        response: introMessage,
+        citedArticles: [],
+        searchResults: [],
+        success: true
+      });
+    }
 
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
@@ -12,24 +26,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const claudeService = getClaudeService();
     
-    // If this is voice input, clean it up first
-    const cleanQuery = isVoiceInput 
-      ? await claudeService.cleanupVoiceTranscript(query)
-      : query;
-
-    // Generate response with knowledge base context
-    const { response, relevantArticles } = await claudeService.generateResponse(
+    // Use RAG-enhanced response for better knowledge integration
+    const ragResponse = await claudeService.sendMessageWithContext(
       messages as Message[], 
-      cleanQuery
+      query
     );
 
     return NextResponse.json({
-      response,
-      cleanedQuery: isVoiceInput ? cleanQuery : null,
-      relevantArticles,
+      response: ragResponse.response,
+      citedArticles: ragResponse.citedArticles,
+      searchResults: ragResponse.searchResults,
       success: true
     });
 

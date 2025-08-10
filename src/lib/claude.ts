@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Article, Message } from '@/types';
-import articlesData from '@/data/articles.json';
 import promptsData from '@/data/prompts.json';
 
 export class ClaudeService {
@@ -14,10 +13,8 @@ export class ClaudeService {
   }
 
   private searchRelevantArticles(query: string, limit = 3): Article[] {
-    const articles = articlesData.map(article => ({
-      ...article,
-      lastUpdated: new Date(article.lastUpdated)
-    })) as Article[];
+    // Return empty array since we no longer have articles.json
+    const articles: Article[] = [];
     const queryLower = query.toLowerCase();
     
     // Simple keyword matching - could be enhanced with vector search
@@ -172,6 +169,42 @@ export class ClaudeService {
       }
     } catch (error) {
       console.error('Error extracting session notes:', error);
+      return [];
+    }
+  }
+
+  async generateAutoTherapistNotes(userMessage: string, assistantMessage: string): Promise<string[]> {
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: `As a financial therapist, analyze this conversation exchange and generate 1-3 concise, professional notes that capture:
+          
+1. Key insights about the client's financial psychology or behavior
+2. Important action items or recommendations given
+3. Areas for follow-up or deeper exploration
+
+User said: "${userMessage}"
+Therapist responded: "${assistantMessage}"
+
+Return only the notes as a JSON array of strings. Each note should be 1-2 sentences maximum.
+
+Example format: ["Client shows anxiety around market volatility, need to explore risk tolerance", "Recommended starting with low-cost index funds", "Follow up on retirement timeline in next session"]`
+        }]
+      });
+
+      const responseText = response.content[0].type === 'text' ? response.content[0].text : '[]';
+      
+      try {
+        return JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing auto therapist notes:', parseError);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error generating auto therapist notes:', error);
       return [];
     }
   }

@@ -15,7 +15,7 @@ import {
   Download
 } from 'lucide-react';
 import { Session, SessionNote } from '@/types';
-import { SessionStorage } from '@/lib/sessionStorage';
+import { EnhancedSessionStorage } from '@/lib/session-enhanced';
 
 interface SessionNotebookProps {
   session: Session;
@@ -30,10 +30,17 @@ const noteTypeIcons = {
 };
 
 const noteTypeColors = {
-  insight: 'bg-yellow-100 border-yellow-300 text-yellow-800',
-  action: 'bg-green-100 border-green-300 text-green-800', 
-  recommendation: 'bg-blue-100 border-blue-300 text-blue-800',
-  question: 'bg-purple-100 border-purple-300 text-purple-800'
+  insight: 'bg-yellow-50 border-yellow-200 text-yellow-900',
+  action: 'bg-green-50 border-green-200 text-green-900', 
+  recommendation: 'bg-blue-50 border-blue-200 text-blue-900',
+  question: 'bg-purple-50 border-purple-200 text-purple-900'
+};
+
+const noteTypeLabels = {
+  insight: 'Client Insight',
+  action: 'Action Item',
+  recommendation: 'Recommendation',
+  question: 'Follow-up Question'
 };
 
 export default function SessionNotebook({ session, onSessionUpdate }: SessionNotebookProps) {
@@ -46,12 +53,12 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
   const handleAddNote = () => {
     if (!newNote.content.trim()) return;
 
-    SessionStorage.addNote(session.id, {
+    EnhancedSessionStorage.addNote(session.id, {
       content: newNote.content,
       type: newNote.type
     });
 
-    const updatedSession = SessionStorage.getSession(session.id);
+    const updatedSession = EnhancedSessionStorage.getSession(session.id);
     if (updatedSession) {
       onSessionUpdate(updatedSession);
     }
@@ -71,9 +78,9 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
   const handleSaveEdit = () => {
     if (!editingNote || !editContent.trim()) return;
 
-    SessionStorage.updateNote(session.id, editingNote, editContent);
+    EnhancedSessionStorage.updateNote(session.id, editingNote, editContent);
     
-    const updatedSession = SessionStorage.getSession(session.id);
+    const updatedSession = EnhancedSessionStorage.getSession(session.id);
     if (updatedSession) {
       onSessionUpdate(updatedSession);
     }
@@ -84,9 +91,9 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
 
   const handleDeleteNote = (noteId: string) => {
     if (confirm('Are you sure you want to delete this note?')) {
-      SessionStorage.deleteNote(session.id, noteId);
+      EnhancedSessionStorage.deleteNote(session.id, noteId);
       
-      const updatedSession = SessionStorage.getSession(session.id);
+      const updatedSession = EnhancedSessionStorage.getSession(session.id);
       if (updatedSession) {
         onSessionUpdate(updatedSession);
       }
@@ -94,7 +101,12 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
   };
 
   const handleExportSession = () => {
-    const content = SessionStorage.exportSession(session.id);
+    const content = EnhancedSessionStorage.exportSession(session.id, {
+      includeMessages: true,
+      includeNotes: true,
+      includeSummary: true,
+      format: 'txt'
+    });
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     
@@ -115,11 +127,11 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
-          <BookOpen className="w-5 h-5 text-gray-600" />
+          <BookOpen className="w-5 h-5 text-blue-600" />
           <div>
-            <h3 className="font-medium text-gray-900">Session Notebook</h3>
+            <h3 className="font-medium text-gray-900">Therapist Notebook</h3>
             <p className="text-sm text-gray-500">
-              {session.notes.length} notes • Last updated {session.updatedAt.toLocaleTimeString()}
+              Session insights • {session.notes.length} entries • {session.updatedAt.toLocaleTimeString()}
             </p>
           </div>
         </div>
@@ -153,13 +165,13 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
             )}
 
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-medium text-gray-700">Session Notes</h4>
+              <h4 className="text-sm font-medium text-gray-700">Clinical Notes & Observations</h4>
               <button
                 onClick={() => setIsAddingNote(true)}
                 className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Add Note
+                Add Observation
               </button>
             </div>
 
@@ -177,7 +189,7 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
                       }`}
                     >
                       {noteTypeIcons[type]}
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                      {noteTypeLabels[type]}
                     </button>
                   ))}
                 </div>
@@ -214,7 +226,8 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
               {session.notes.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No notes yet. Add your first note above!</p>
+                  <p className="text-sm">No observations recorded yet.</p>
+                  <p className="text-xs mt-1">Use the button above to add insights from the conversation.</p>
                 </div>
               ) : (
                 session.notes.map((note) => (
@@ -227,7 +240,7 @@ export default function SessionNotebook({ session, onSessionUpdate }: SessionNot
                         <div className="flex items-center gap-2 mb-1">
                           {noteTypeIcons[note.type]}
                           <span className="text-xs font-medium uppercase tracking-wide">
-                            {note.type}
+                            {noteTypeLabels[note.type]}
                           </span>
                           <span className="text-xs opacity-75">
                             {note.timestamp.toLocaleTimeString()}
