@@ -1,0 +1,112 @@
+# Fly.io Configuration for Financial Advisor App
+# Optimized for Mumbai region deployment
+
+app = "financial-advisor-india"  # Change this to your unique app name
+primary_region = "bom"  # Mumbai region for India users
+kill_signal = "SIGTERM"
+kill_timeout = 5
+processes = []
+
+# Build configuration
+[build]
+  # Using Dockerfile for better control
+  dockerfile = "Dockerfile"
+  
+  # Build arguments (public keys only)
+  [build.args]
+    NEXT_PUBLIC_ELEVENLABS_API_KEY = "will-be-set-as-secret"
+    NODE_ENV = "production"
+
+# Environment variables (non-sensitive)
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+  # Database path for Fly.io volume
+  DATABASE_PATH = "/data/database.sqlite"
+  # Next.js telemetry
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Experimental features for better performance
+[experimental]
+  auto_rollback = true
+
+# HTTP service configuration
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  
+  # Concurrency limits
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+# Volume mount for SQLite database
+[mounts]
+  source = "sqlite_data"
+  destination = "/data"
+
+# Health checks
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  # TCP checks for health monitoring
+  [[services.tcp_checks]]
+    grace_period = "5s"
+    interval = "15s"
+    restart_limit = 0
+    timeout = "2s"
+
+  # HTTP health check endpoint
+  [[services.http_checks]]
+    interval = "30s"
+    grace_period = "10s"
+    method = "get"
+    path = "/api/health"
+    protocol = "http"
+    restart_limit = 0
+    timeout = "5s"
+    tls_skip_verify = false
+    
+    # Expected response headers
+    [services.http_checks.headers]
+
+# Machine configuration
+[[vm]]
+  # Start with small instance, scale as needed
+  # Options: shared-cpu-1x, shared-cpu-2x, shared-cpu-4x
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# Statics configuration for Next.js
+[statics]
+  guest_path = "/app/public"
+  url_prefix = "/"
+
+# Deploy configuration
+[deploy]
+  # Strategy for zero-downtime deployments
+  strategy = "rolling"
+  
+  # Wait for health checks before considering deployment successful
+  wait_timeout = "5m"

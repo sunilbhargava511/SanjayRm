@@ -18,6 +18,7 @@ export interface Session {
   updatedAt: Date;
   summary?: string;
   isActive?: boolean; // Add missing field used in code
+  metadata?: Record<string, any>; // For storing additional data like ElevenLabs conversation ID
 }
 
 export interface SessionNote {
@@ -53,4 +54,128 @@ export interface KnowledgeBaseContext {
   relevantArticles: Article[];
   searchQuery: string;
   confidence: number;
+}
+
+// Educational System Types
+export interface ContentChunk {
+  id: string;
+  orderIndex: number;
+  title: string;
+  content: string;
+  question: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Conversation {
+  id: string;
+  conversationType: 'structured' | 'open-ended';
+  userId?: string;
+  currentChunkIndex: number; // Which chunk to deliver next (for structured)
+  chunkLastDelivered: number; // Last chunk delivered (for structured)
+  completed: boolean;
+  personalizationEnabled: boolean;
+  conversationAware?: boolean; // Optional - falls back to admin setting if not set
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Keep old interface for backward compatibility during migration
+export interface EducationalSession extends Conversation {}
+
+export interface ChunkResponse {
+  id: string;
+  sessionId: string;
+  chunkId: string;
+  userResponse: string;
+  aiResponse: string;
+  timestamp: Date;
+}
+
+export interface AdminSettings {
+  id: string;
+  voiceId: string;
+  voiceDescription: string;
+  personalizationEnabled: boolean;
+  conversationAware: boolean; // Enable smooth lead-ins between chunks
+  useStructuredConversation: boolean;
+  baseReportPath?: string;
+  baseReportTemplate?: Uint8Array; // PDF template binary data
+  updatedAt: Date;
+}
+
+export interface SystemPrompt {
+  id: string;
+  type: 'content' | 'qa' | 'report';
+  content: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface KnowledgeBaseFile {
+  id: string;
+  filename: string;
+  content: string;
+  fileType: string;
+  indexedContent?: string;
+  uploadedAt: Date;
+}
+
+export interface SessionReport {
+  id: string;
+  sessionId: string;
+  reportPath: string;
+  reportData?: Uint8Array; // PDF binary data
+  generatedAt: Date;
+}
+
+// Educational Flow Types
+export type ChunkDeliveryState = 'loading' | 'playing' | 'waiting_for_response' | 'processing' | 'completed';
+
+export interface ConversationState {
+  conversation: Conversation | null;
+  chunks: ContentChunk[];
+  currentChunk: ContentChunk | null;
+  responses: ChunkResponse[];
+  deliveryState: ChunkDeliveryState;
+  isPersonalizationEnabled: boolean;
+}
+
+// Keep old interface for backward compatibility during migration
+export interface EducationalSessionState extends ConversationState {
+  session: EducationalSession | null; // Alias for conversation
+}
+
+// Admin Panel Types
+export interface AdminPanelState {
+  chunks: ContentChunk[];
+  settings: AdminSettings | null;
+  systemPrompts: SystemPrompt[];
+  knowledgeBase: KnowledgeBaseFile[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface ChunkFileUpload {
+  file: File;
+  title: string;
+  question: string;
+}
+
+// Voice & Audio Types (enhanced)
+export interface VoiceSettings {
+  voiceId: string;
+  description: string;
+  stability?: number;
+  similarityBoost?: number;
+  style?: number;
+}
+
+export interface AudioPlaybackState {
+  isPlaying: boolean;
+  currentText: string;
+  canInterrupt: boolean;
+  error?: string;
 }

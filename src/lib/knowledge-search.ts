@@ -1,7 +1,6 @@
 import { Article } from '@/types';
-import { seniorInvestorsPlaybook } from '@/data/senior-investors-playbook';
-import { playbookQA } from '@/data/playbook-qa';
-import { playbookTimeline } from '@/data/playbook-timeline';
+import { db } from './database';
+import * as schema from './database/schema';
 
 export interface SearchResult {
   article: Article;
@@ -16,17 +15,101 @@ export interface KnowledgeSearchOptions {
 }
 
 export class KnowledgeSearchService {
-  private articles: Article[];
+  private articlesCache: Article[] | null = null;
+  private cacheExpiry: number = 0;
+  private readonly cacheTimeout = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
-    // Initialize with the Senior Investor's Playbook articles
-    this.articles = [seniorInvestorsPlaybook, playbookQA, playbookTimeline];
+    // Articles will be loaded dynamically from database
+  }
+
+  /**
+   * Load articles from knowledge base database
+   */
+  private async loadArticles(): Promise<Article[]> {
+    // Check cache first
+    if (this.articlesCache && Date.now() < this.cacheExpiry) {
+      return this.articlesCache;
+    }
+
+    try {
+      const knowledgeFiles = await db.select().from(schema.knowledgeBaseFiles);
+      
+      const articles: Article[] = knowledgeFiles.map(file => {
+        // Parse the markdown content to extract metadata
+        const article = this.parseMarkdownToArticle(file);
+        return article;
+      });
+
+      // Update cache
+      this.articlesCache = articles;
+      this.cacheExpiry = Date.now() + this.cacheTimeout;
+
+      return articles;
+    } catch (error) {
+      console.error('Error loading articles from knowledge base:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse knowledge base file into Article format
+   */
+  private parseMarkdownToArticle(file: any): Article {
+    const content = file.content;
+    const lines = content.split('\n');
+    
+    // Extract title (first # header)
+    const titleLine = lines.find(line => line.startsWith('# '));
+    const title = titleLine ? titleLine.replace('# ', '') : file.filename.replace('.md', '');
+    
+    // Extract metadata
+    let summary = '';
+    let category = 'Financial Planning';
+    let readTime = '5 min read';
+    const tags: string[] = [];
+    
+    // Parse metadata section
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('**Category:**')) {
+        category = line.replace('**Category:**', '').trim();
+      } else if (line.startsWith('**Read Time:**')) {
+        readTime = line.replace('**Read Time:**', '').trim();
+      } else if (line.startsWith('## Summary')) {
+        // Extract summary from next few lines
+        for (let j = i + 1; j < lines.length && !lines[j].startsWith('##'); j++) {
+          if (lines[j].trim()) {
+            summary += lines[j].trim() + ' ';
+          }
+        }
+        summary = summary.trim();
+      } else if (line.includes('#') && line.includes('_')) {
+        // Extract tags (lines with hashtags)
+        const lineTags = line.match(/#\w+(?:_\w+)*/g);
+        if (lineTags) {
+          tags.push(...lineTags.map(tag => tag.replace('#', '').replace(/_/g, ' ')));
+        }
+      }
+    }
+
+    return {
+      id: file.id,
+      title,
+      summary: summary || 'No summary available',
+      content,
+      category,
+      tags: tags.length > 0 ? tags : ['financial planning'],
+      readTime: readTime,
+      author: 'Sanjay Bhargava',
+      lastUpdated: new Date(file.uploadedAt)
+    };
   }
 
   /**
    * Search articles using keyword matching and scoring
    */
-  searchArticles(query: string, options: KnowledgeSearchOptions = {}): SearchResult[] {
+  async searchArticles(query: string, options: KnowledgeSearchOptions = {}): Promise<SearchResult[]> {
     const {
       maxResults = 5,
       minRelevanceScore = 0.1,
@@ -35,10 +118,11 @@ export class KnowledgeSearchService {
 
     if (!query.trim()) return [];
 
+    const articles = await this.loadArticles();
     const searchTerms = this.extractSearchTerms(query);
     const results: SearchResult[] = [];
 
-    for (const article of this.articles) {
+    for (const article of articles) {
       // Apply category filter if specified
       if (categoryFilter && article.category !== categoryFilter) continue;
 
@@ -63,8 +147,9 @@ export class KnowledgeSearchService {
   /**
    * Get articles by category
    */
-  getArticlesByCategory(category: string): Article[] {
-    return this.articles.filter(article => 
+  async getArticlesByCategory(category: string): Promise<Article[]> {
+    const articles = await this.loadArticles();
+    return articles.filter(article => 
       article.category.toLowerCase() === category.toLowerCase()
     );
   }
@@ -72,31 +157,49 @@ export class KnowledgeSearchService {
   /**
    * Get article by ID
    */
-  getArticleById(id: string): Article | null {
-    return this.articles.find(article => article.id === id) || null;
+  async getArticleById(id: string): Promise<Article | null> {
+    const articles = await this.loadArticles();
+    return articles.find(article => article.id === id) || null;
   }
 
   /**
    * Get all available categories
    */
-  getCategories(): string[] {
-    return Array.from(new Set(this.articles.map(article => article.category))).sort();
+  async getCategories(): Promise<string[]> {
+    const articles = await this.loadArticles();
+    return Array.from(new Set(articles.map(article => article.category))).sort();
   }
 
   /**
    * Find the most relevant articles for financial topics
    */
-  findRelevantArticles(userMessage: string, limit: number = 3): SearchResult[] {
+  async findRelevantArticles(userMessage: string, limit: number = 3): Promise<SearchResult[]> {
     // Enhanced search that looks for financial keywords and concepts
     const financialKeywords = this.extractFinancialKeywords(userMessage);
     
     if (financialKeywords.length === 0) {
       // If no specific keywords, do a general search
-      return this.searchArticles(userMessage, { maxResults: limit });
+      return await this.searchArticles(userMessage, { maxResults: limit });
     }
 
     // Search with financial context
-    return this.searchArticles(financialKeywords.join(' '), { maxResults: limit });
+    return await this.searchArticles(financialKeywords.join(' '), { maxResults: limit });
+  }
+
+  /**
+   * Clear the articles cache (useful when knowledge base is updated)
+   */
+  clearCache(): void {
+    this.articlesCache = null;
+    this.cacheExpiry = 0;
+  }
+
+  /**
+   * Force reload of articles from database
+   */
+  async refreshArticles(): Promise<Article[]> {
+    this.clearCache();
+    return await this.loadArticles();
   }
 
   /**

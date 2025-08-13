@@ -14,11 +14,10 @@ import {
 } from 'lucide-react';
 import { Session } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
-import ChatInterface from '@/components/chat/ChatInterface';
-import VoiceSessionInterface from '@/components/VoiceSessionInterface';
+import ConversationalInterface from '@/components/ConversationalInterface';
 import KnowledgeBase from '@/components/knowledge/KnowledgeBase';
 
-type ViewType = 'home' | 'chat' | 'voice' | 'knowledge' | 'sessions';
+type ViewType = 'home' | 'voice' | 'knowledge' | 'sessions';
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
@@ -30,13 +29,47 @@ export default function HomePage() {
     setRecentSessions(sessions);
   }, []);
 
-  const handleStartNewSession = () => {
-    EnhancedSessionStorage.createNewSession();
-    setCurrentView('voice');
+  const handleStartNewSession = async () => {
+    try {
+      // Create a new educational session
+      const response = await fetch('/api/educational-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          // No explicit personalization/conversation aware settings - will use admin defaults
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Store session ID in localStorage for the conversation interface
+        localStorage.setItem('currentEducationalSessionId', data.session.id);
+        
+        // Store the conversation mode for the voice interface to use
+        localStorage.setItem('conversationMode', data.conversationMode);
+        
+        if (data.conversationMode === 'open-ended') {
+          // Structured conversation is disabled - notify user about open-ended conversation mode
+          console.log('Structured conversation is disabled, starting open-ended conversation mode');
+          alert('Structured conversation is currently disabled. Starting open-ended conversation mode instead.');
+        }
+        
+        setCurrentView('voice');
+      } else {
+        // Generic error handling for actual failures
+        const errorData = await response.json();
+        console.error('Failed to create session:', errorData.error || 'Unknown error');
+        alert(errorData.error || 'Failed to start session. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating educational session:', error);
+      alert('Failed to start educational session. Please try again.');
+    }
   };
 
   const handleLoadSession = () => {
-    setCurrentView('chat');
+    setCurrentView('voice');
   };
 
   const features = [
@@ -76,12 +109,9 @@ export default function HomePage() {
   ];
 
   if (currentView === 'voice') {
-    return <VoiceSessionInterface onBack={() => setCurrentView('home')} />;
+    return <ConversationalInterface onBack={() => setCurrentView('home')} />;
   }
 
-  if (currentView === 'chat') {
-    return <ChatInterface onBack={() => setCurrentView('home')} />;
-  }
 
   if (currentView === 'knowledge') {
     return <KnowledgeBase onBack={() => setCurrentView('home')} />;
@@ -143,11 +173,11 @@ export default function HomePage() {
             Meet Sanjay Bhargava
           </h2>
           <p className="text-xl text-gray-600 mb-2">
-AI Retirement Planning Specialist
+            AI Retirement Planning Specialist
           </p>
           <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
-            PayPal founding member and former SpaceX India head offering data-driven, practical financial guidance. 
-            Specializing in achieving &quot;Zero Financial Anxiety&quot; through personalized strategies.
+            PayPal founding member offering voice-guided financial conversations. 
+            Get personalized financial advice through interactive conversations designed to achieve &quot;Zero Financial Anxiety&quot;.
           </p>
           
           <div className="flex flex-col items-center gap-6">
@@ -157,7 +187,7 @@ AI Retirement Planning Specialist
             >
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <Mic className="w-8 h-8 relative z-10" />
-              <span className="relative z-10">Start Voice Session</span>
+              <span className="relative z-10">Start Conversation</span>
               <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse relative z-10"></div>
             </button>
             
@@ -232,7 +262,10 @@ AI Retirement Planning Specialist
                   <div className="flex items-start justify-between mb-2">
                     <h4 className="font-medium text-gray-900 line-clamp-1">{session.title}</h4>
                     <span className="text-xs text-gray-500">
-                      {session.updatedAt.toLocaleDateString()}
+                      {session.updatedAt instanceof Date 
+                        ? session.updatedAt.toLocaleDateString()
+                        : new Date(session.updatedAt).toLocaleDateString()
+                      }
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
@@ -258,16 +291,16 @@ AI Retirement Planning Specialist
         <div className="text-center mt-16">
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-white">
             <Sparkles className="w-8 h-8 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold mb-4">Ready to Achieve Zero Financial Anxiety?</h3>
+            <h3 className="text-2xl font-bold mb-4">Ready to Master Retirement Planning?</h3>
             <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-              Start your personalized financial coaching session with voice interaction, 
-              intelligent note-taking, and access to Sanjay&apos;s proven strategies.
+              Experience structured financial education through voice-guided lessons, 
+              interactive Q&A, and personalized insights from Sanjay&apos;s proven strategies.
             </p>
             <button
               onClick={handleStartNewSession}
               className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold hover:bg-gray-100 transition-colors shadow-lg"
             >
-              Begin Your Session Now
+              Start Educational Program
             </button>
           </div>
         </div>

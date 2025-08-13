@@ -1,7 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Message, SessionNote, Article } from '@/types';
 import { knowledgeSearch, SearchResult } from './knowledge-search';
-import { SYSTEM_PROMPTS } from './system-prompts';
+import { ERROR_MESSAGES } from './system-prompts';
+import { db } from './database';
+import * as schema from './database/schema';
 
 export interface ClaudeConfig {
   model: string;
@@ -34,7 +36,7 @@ export class EnhancedClaudeService {
     model: 'claude-3-5-sonnet-20241022',
     maxTokens: 4000,
     temperature: 0.7,
-    systemPrompt: SYSTEM_PROMPTS.financial_advisor
+    systemPrompt: 'You are a helpful AI assistant specializing in financial advice.' // Fallback
   };
 
   static readonly DEFAULT_AUTO_NOTE_CONFIG: AutoNoteConfig = {
@@ -51,12 +53,32 @@ export class EnhancedClaudeService {
   ) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
+      throw new Error(ERROR_MESSAGES.ANTHROPIC_API_KEY_MISSING);
     }
 
     this.client = new Anthropic({ apiKey });
     this.config = { ...EnhancedClaudeService.DEFAULT_CONFIG, ...config };
     this.autoNoteConfig = { ...EnhancedClaudeService.DEFAULT_AUTO_NOTE_CONFIG, ...autoNoteConfig };
+  }
+
+  // Load prompt from database by type
+  private async getPrompt(type: 'content' | 'qa' | 'report'): Promise<string> {
+    try {
+      const prompt = await db.select().from(schema.systemPrompts)
+        .where(schema.systemPrompts.type === type)
+        .where(schema.systemPrompts.active === true)
+        .limit(1);
+      
+      if (prompt.length === 0) {
+        throw new Error(`${ERROR_MESSAGES.PROMPT_NOT_FOUND}: ${type}`);
+      }
+      
+      return prompt[0].content;
+    } catch (error) {
+      console.error(`Failed to load ${type} prompt:`, error);
+      // Fallback to basic prompt to prevent system failure
+      return 'You are a helpful AI assistant specializing in financial advice.';
+    }
   }
 
   // RAG-enhanced conversation method
@@ -66,20 +88,23 @@ export class EnhancedClaudeService {
   ): Promise<RAGResponse> {
     try {
       // Search for relevant articles
-      const searchResults = knowledgeSearch.findRelevantArticles(userMessage, 3);
+      const searchResults = await knowledgeSearch.findRelevantArticles(userMessage, 3);
       
       // Generate context from search results
       const contextSummary = knowledgeSearch.generateContextSummary(searchResults);
       
+      // Load appropriate prompt from database
+      const basePrompt = await this.getPrompt('qa'); // Use QA prompt for conversations with knowledge base
+      
       // Create enhanced system prompt with context
       const enhancedPrompt = contextSummary 
-        ? `${SYSTEM_PROMPTS.financial_advisor_with_context}
+        ? `${basePrompt}
 
 RELEVANT KNOWLEDGE BASE CONTENT:
 ${contextSummary}
 
 Use this context to provide informed, specific advice while maintaining your warm, conversational tone.`
-        : SYSTEM_PROMPTS.financial_advisor;
+        : basePrompt;
 
       // Get Claude's response
       const response = await this.sendMessage(messages, enhancedPrompt);
@@ -91,13 +116,7 @@ Use this context to provide informed, specific advice while maintaining your war
       };
     } catch (error) {
       console.error('Error in RAG-enhanced conversation:', error);
-      // Fallback to regular conversation
-      const response = await this.sendMessage(messages);
-      return {
-        response,
-        citedArticles: [],
-        searchResults: []
-      };
+      throw new Error(`RAG-enhanced conversation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -120,11 +139,17 @@ Use this context to provide informed, specific advice while maintaining your war
         messages: formattedMessages
       });
 
+      if (!response.content || response.content.length === 0) {
+        console.error('Empty response from Claude:', response);
+        throw new Error('No content in Claude response');
+      }
+
       const content = response.content[0];
-      if (content.type === 'text') {
+      if (content && content.type === 'text') {
         return content.text;
       }
       
+      console.error('Unexpected response format:', content);
       throw new Error('Unexpected response format from Claude');
     } catch (error) {
       console.error('Claude API error:', error);
@@ -155,7 +180,21 @@ Keep it professional and suitable for session records.`;
 
   // Extract structured session notes
   async extractSessionNotes(userMessage: string, assistantMessage: string): Promise<SessionNote[]> {
-    const extractPrompt = `${SYSTEM_PROMPTS.note_extractor}
+    // Technical note extraction prompt (kept in code, not admin-controllable)
+    const extractPrompt = `Extract structured insights from this financial counseling conversation. Return ONLY a JSON array of notes with this format:
+[
+  {
+    "type": "insight|action|recommendation|question",
+    "content": "specific note content",
+    "priority": "high|medium|low"
+  }
+]
+
+Types:
+- insight: Understanding about client's relationship with money
+- action: Specific steps client should take
+- recommendation: Advisor suggestions or strategies  
+- question: Follow-up questions for next session
 
 User: ${userMessage}
 Assistant: ${assistantMessage}`;
@@ -202,7 +241,16 @@ Assistant: ${assistantMessage}`;
 
   // Generate auto therapist notes (enhanced version)
   async generateAutoTherapistNotes(userMessage: string, assistantMessage: string): Promise<SessionNote[]> {
-    const analysisPrompt = `${SYSTEM_PROMPTS.session_analyzer}
+    // Technical session analysis prompt (kept in code, not admin-controllable)
+    const analysisPrompt = `You are an expert at analyzing retirement planning sessions. Extract key insights, action items, and recommendations from conversations between a retirement specialist and client.
+
+Focus on:
+- Client's emotional relationship with money
+- Behavioral patterns and triggers
+- Specific financial goals or concerns
+- Action items and next steps
+- Areas requiring follow-up
+- Progress indicators
 
 Analyze this exchange and generate up to ${this.autoNoteConfig.maxNotes} structured notes:
 

@@ -1,0 +1,2074 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  Upload, 
+  Settings, 
+  FileText, 
+  Database,
+  Save,
+  Trash2,
+  Plus,
+  Eye,
+  AlertCircle,
+  GripVertical,
+  Edit3,
+  Download,
+  BarChart3
+} from 'lucide-react';
+import { 
+  ContentChunk, 
+  AdminSettings, 
+  SystemPrompt, 
+  KnowledgeBaseFile,
+  SessionReport 
+} from '@/types';
+
+type AdminTab = 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports';
+type SettingsTab = 'general' | 'voice' | 'ui';
+
+// Component for async summary generation
+const ChunkSummary: React.FC<{
+  chunkId: string;
+  content: string;
+  generateSummary: (chunkId: string, content: string) => Promise<string>;
+}> = ({ chunkId, content, generateSummary }) => {
+  const [summary, setSummary] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      setIsLoading(true);
+      try {
+        const generatedSummary = await generateSummary(chunkId, content);
+        setSummary(generatedSummary);
+      } catch (error) {
+        console.error('Error generating summary:', error);
+        setSummary('Unable to generate summary');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSummary();
+  }, [chunkId, content, generateSummary]);
+
+  if (isLoading) {
+    return (
+      <div className="text-blue-900 text-sm leading-relaxed">
+        <div className="animate-pulse flex space-x-1">
+          <div className="h-3 bg-blue-200 rounded w-20"></div>
+          <div className="h-3 bg-blue-200 rounded w-16"></div>
+          <div className="h-3 bg-blue-200 rounded w-24"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <p className="text-blue-900 text-sm leading-relaxed whitespace-pre-line">{summary}</p>
+  );
+};
+
+export default function AdminPanel() {
+  const [currentTab, setCurrentTab] = useState<AdminTab>('chunks');
+  const [currentSettingsTab, setCurrentSettingsTab] = useState<SettingsTab>('general');
+  const [chunks, setChunks] = useState<ContentChunk[]>([]);
+  const [settings, setSettings] = useState<AdminSettings | null>(null);
+  const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBaseFile[]>([]);
+  const [reports, setReports] = useState<SessionReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [draggedChunk, setDraggedChunk] = useState<string | null>(null);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
+  const [showUploadKnowledgeForm, setShowUploadKnowledgeForm] = useState(false);
+  const [hasBaseTemplate, setHasBaseTemplate] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // UI Preferences (stored in localStorage, not database)
+  const [uiPreferences, setUiPreferences] = useState({
+    showEducationalToggle: true,
+    showReportsToggle: true,
+    showKnowledgeCitations: false
+  });
+  const baseTemplateInputRef = useRef<HTMLInputElement>(null);
+
+  // Load UI preferences from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('admin_ui_preferences');
+    if (saved) {
+      try {
+        setUiPreferences(JSON.parse(saved));
+      } catch (error) {
+        console.error('Error loading UI preferences:', error);
+      }
+    }
+  }, []);
+  
+  // Save UI preferences to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('admin_ui_preferences', JSON.stringify(uiPreferences));
+  }, [uiPreferences]);
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const [chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes] = await Promise.all([
+        fetch('/api/admin/chunks'),
+        fetch('/api/admin/settings'),
+        fetch('/api/admin/prompts'),
+        fetch('/api/admin/knowledge-base'),
+        fetch('/api/reports'),
+        fetch('/api/admin/base-template')
+      ]);
+
+      if (chunksRes.ok) {
+        const chunksData = await chunksRes.json();
+        setChunks(chunksData.chunks || []);
+      }
+
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setSettings(settingsData.settings);
+      }
+
+      if (promptsRes.ok) {
+        const promptsData = await promptsRes.json();
+        setPrompts(promptsData.prompts || []);
+      }
+
+      if (knowledgeRes.ok) {
+        const knowledgeData = await knowledgeRes.json();
+        setKnowledgeFiles(knowledgeData.files || []);
+      }
+
+      if (reportsRes.ok) {
+        const reportsData = await reportsRes.json();
+        setReports(reportsData.reports || []);
+      }
+
+      if (templateRes.ok) {
+        const templateData = await templateRes.json();
+        setHasBaseTemplate(templateData.hasTemplate || false);
+      }
+    } catch (err) {
+      setError('Failed to load admin data');
+      console.error('Admin data load error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Chunk Management Functions
+  const uploadChunk = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      const response = await fetch('/api/admin/chunks', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        await loadData();
+        (e.target as HTMLFormElement).reset();
+        setShowUploadForm(false); // Close form after successful upload
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to upload chunk');
+      }
+    } catch (err) {
+      setError('Failed to upload chunk');
+    }
+  };
+
+
+  const deleteChunk = async (chunkId: string) => {
+    if (!confirm('Are you sure you want to delete this chunk?')) return;
+
+    try {
+      const response = await fetch(`/api/admin/chunks?id=${chunkId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadData();
+      }
+    } catch (err) {
+      setError('Failed to delete chunk');
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, chunkId: string) => {
+    setDraggedChunk(chunkId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (!draggedChunk) return;
+    
+    const draggedIndex = chunks.findIndex(c => c.id === draggedChunk);
+    if (draggedIndex === dropIndex) return;
+
+    // Reorder chunks array
+    const newChunks = [...chunks];
+    const draggedItem = newChunks.splice(draggedIndex, 1)[0];
+    newChunks.splice(dropIndex, 0, draggedItem);
+
+    // Update order indices
+    const reorderedIds = newChunks.map(c => c.id);
+    
+    try {
+      const response = await fetch('/api/admin/chunks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reorder',
+          chunkIds: reorderedIds,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        setError('Failed to reorder chunks');
+      }
+    } catch (err) {
+      setError('Failed to reorder chunks');
+    }
+    
+    setDraggedChunk(null);
+  };
+
+  // Preview chunk in new window
+  const previewChunk = (chunk: ContentChunk) => {
+    const content = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${chunk.title}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+        }
+        .header {
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            color: #1f2937;
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        .meta {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        .content {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            white-space: pre-wrap;
+            line-height: 1.8;
+        }
+        .question {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .question h3 {
+            margin: 0 0 1rem 0;
+            color: #1e40af;
+            font-size: 1.125rem;
+        }
+        .question p {
+            margin: 0;
+            color: #1e3a8a;
+            font-weight: 500;
+        }
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .export-btn {
+            background-color: #059669;
+        }
+        .export-btn:hover {
+            background-color: #047857;
+        }
+        .close-btn {
+            background-color: #6b7280;
+        }
+        .close-btn:hover {
+            background-color: #4b5563;
+        }
+        @media print {
+            .actions { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${chunk.title}</h1>
+        <div class="meta">
+            Created: ${new Date(chunk.createdAt).toLocaleDateString()} | 
+            Order: #${chunk.orderIndex + 1} | 
+            Status: ${chunk.active ? 'Active' : 'Inactive'}
+        </div>
+    </div>
+    
+    <div class="content">${chunk.content}</div>
+    
+    <div class="question">
+        <h3>Ending Question</h3>
+        <p>${chunk.question}</p>
+    </div>
+    
+    <div class="actions">
+        <button onclick="window.print()">Print</button>
+        <button class="export-btn" onclick="exportChunk()">Export as Text</button>
+        <button class="close-btn" onclick="window.close()">Close Window</button>
+    </div>
+    
+    <script>
+        function exportChunk() {
+            const content = \`${chunk.content}\\n\\n${chunk.question}\`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '${chunk.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>`;
+    
+    const newWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+    if (newWindow) {
+      newWindow.document.write(content);
+      newWindow.document.close();
+    } else {
+      alert('Please allow pop-ups for this site to preview chunks in new windows');
+    }
+  };
+
+  // Edit chunk through file upload
+  const [editingChunk, setEditingChunk] = useState<ContentChunk | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  const startEditChunk = (chunk: ContentChunk) => {
+    setEditingChunk(chunk);
+  };
+
+  const updateChunkFromFile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingChunk) return;
+
+    const formData = new FormData(e.currentTarget);
+    const file = formData.get('file') as File;
+    const title = formData.get('title') as string;
+    const question = formData.get('question') as string;
+
+    try {
+      let content = editingChunk.content; // Keep existing content if no file
+      if (file) {
+        content = await file.text();
+      }
+
+      const response = await fetch('/api/admin/chunks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_content',
+          chunkId: editingChunk.id,
+          title: title || editingChunk.title,
+          content,
+          question: question || editingChunk.question,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingChunk(null);
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to update chunk');
+      }
+    } catch (err) {
+      setError('Failed to update chunk');
+    }
+  };
+
+  // Export chunk
+  const exportChunk = (chunk: ContentChunk) => {
+    const content = `${chunk.content}\n\n${chunk.question}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chunk.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Store generated summaries to avoid re-generating
+  const [chunkSummaries, setChunkSummaries] = useState<Record<string, string>>({});
+
+  // Generate a real 3-line summary of the chunk content using AI
+  const generateSummary = useCallback(async (chunkId: string, content: string): Promise<string> => {
+    // Return cached summary if available
+    if (chunkSummaries[chunkId]) {
+      return chunkSummaries[chunkId];
+    }
+
+    try {
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.summary) {
+          const summary = data.summary;
+          
+          // Cache the summary
+          setChunkSummaries(prev => ({ ...prev, [chunkId]: summary }));
+          return summary;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+    }
+
+    // Fallback to first 3 sentences if AI fails
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    const fallbackSummary = sentences.slice(0, 3).join('. ').trim();
+    return fallbackSummary.length > 200 ? fallbackSummary.substring(0, 197) + '...' : fallbackSummary + '.';
+  }, [chunkSummaries]);
+
+  // System Prompt Management
+
+  const updateSystemPrompt = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingPrompt) return;
+
+    const formData = new FormData(e.currentTarget);
+    const file = formData.get('file') as File;
+    
+    try {
+      let content = editingPrompt.content; // Keep existing content if no file
+      if (file) {
+        content = await file.text();
+      }
+
+      const response = await fetch('/api/admin/prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptId: editingPrompt.id,
+          content,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingPrompt(null);
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to update system prompt');
+      }
+    } catch (err) {
+      setError('Failed to update system prompt');
+    }
+  };
+
+
+  // Preview system prompt in new window
+  const previewSystemPrompt = (prompt: SystemPrompt) => {
+    const content = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${prompt.type.toUpperCase()} System Prompt</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+        }
+        .header {
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            color: #1f2937;
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        .type-badge {
+            display: inline-block;
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            margin-top: 0.5rem;
+        }
+        .meta {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        .content {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            white-space: pre-wrap;
+            line-height: 1.8;
+            font-size: 1rem;
+        }
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .export-btn {
+            background-color: #059669;
+        }
+        .export-btn:hover {
+            background-color: #047857;
+        }
+        .close-btn {
+            background-color: #6b7280;
+        }
+        .close-btn:hover {
+            background-color: #4b5563;
+        }
+        @media print {
+            .actions { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>System Prompt</h1>
+        <div class="type-badge">${prompt.type}</div>
+        <div class="meta">
+            Created: ${new Date(prompt.createdAt).toLocaleDateString()} | 
+            Updated: ${new Date(prompt.updatedAt).toLocaleDateString()} |
+            Status: ${prompt.active ? 'Active' : 'Inactive'}
+        </div>
+    </div>
+    
+    <div class="content">${prompt.content}</div>
+    
+    <div class="actions">
+        <button onclick="window.print()">Print</button>
+        <button class="export-btn" onclick="exportPrompt()">Export as Text</button>
+        <button class="close-btn" onclick="window.close()">Close Window</button>
+    </div>
+    
+    <script>
+        function exportPrompt() {
+            const content = \`${prompt.content}\`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '${prompt.type}_system_prompt.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>`;
+    
+    const newWindow = window.open('', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes');
+    if (newWindow) {
+      newWindow.document.write(content);
+      newWindow.document.close();
+    } else {
+      alert('Please allow pop-ups for this site to preview prompts in new windows');
+    }
+  };
+
+  // Export system prompt
+  const exportSystemPrompt = (prompt: SystemPrompt) => {
+    const content = prompt.content;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${prompt.type}_system_prompt.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Report Management Functions
+  const downloadReport = async (reportId: string, sessionId: string) => {
+    try {
+      const response = await fetch(`/api/reports?reportId=${reportId}`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `session-report-${sessionId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        setError('Failed to download report');
+      }
+    } catch (err) {
+      setError('Failed to download report');
+    }
+  };
+
+  const deleteReport = async (reportId: string) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          reportId
+        })
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        setError('Failed to delete report');
+      }
+    } catch (err) {
+      setError('Failed to delete report');
+    }
+  };
+
+  // Knowledge Base Management
+  const uploadKnowledgeFile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    try {
+      const response = await fetch('/api/admin/knowledge-base', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        await loadData();
+        setShowUploadKnowledgeForm(false);
+        (e.target as HTMLFormElement).reset();
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to upload knowledge base file');
+      }
+    } catch (err) {
+      setError('Failed to upload knowledge base file');
+    }
+  };
+
+  const deleteKnowledgeFile = async (fileId: string, filename: string) => {
+    if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+
+    try {
+      const response = await fetch(`/api/admin/knowledge-base?id=${fileId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        setError('Failed to delete knowledge base file');
+      }
+    } catch (err) {
+      setError('Failed to delete knowledge base file');
+    }
+  };
+
+  // Base Template Management
+  const uploadBaseTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.append('action', 'upload');
+
+    try {
+      const response = await fetch('/api/admin/base-template', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        await loadData();
+        (e.target as HTMLFormElement).reset();
+        alert('Base report template uploaded successfully!');
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to upload template');
+      }
+    } catch (err) {
+      setError('Failed to upload base template');
+    }
+  };
+
+  const removeBaseTemplate = async () => {
+    if (!confirm('Are you sure you want to remove the base report template?')) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('action', 'remove');
+
+      const response = await fetch('/api/admin/base-template', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        await loadData();
+        alert('Base report template removed successfully!');
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to remove template');
+      }
+    } catch (err) {
+      setError('Failed to remove base template');
+    }
+  };
+
+  // Settings Management
+  const updateSettings = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const updates = {
+      voiceId: formData.get('voiceId') as string,
+      voiceDescription: formData.get('voiceDescription') as string,
+      personalizationEnabled: formData.has('personalizationEnabled'),
+      conversationAware: formData.has('conversationAware'),
+    };
+
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
+        await loadData();
+        alert('Settings updated successfully!');
+      }
+    } catch (err) {
+      setError('Failed to update settings');
+    }
+  };
+
+  const updateUISettings = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    // Handle database settings
+    const dbUpdates: any = {};
+    dbUpdates.useStructuredConversation = formData.has('useStructuredConversation');
+    
+    // Handle UI preferences (localStorage)
+    const newUiPreferences = {
+      showEducationalToggle: formData.has('showEducationalToggle'),
+      showReportsToggle: formData.has('showReportsToggle'),
+      showKnowledgeCitations: formData.has('showKnowledgeCitations')
+    };
+    
+    try {
+      // Update database settings
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbUpdates),
+      });
+
+      if (response.ok) {
+        // Update UI preferences
+        setUiPreferences(newUiPreferences);
+        await loadData();
+        alert('UI Settings updated successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Failed to update UI settings: ${error.error}`);
+      }
+    } catch (err) {
+      setError('Failed to update UI settings');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading admin panel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">Financial Advisor - Admin Panel</h1>
+            <div className="text-sm text-gray-500">
+              Educational Content Management
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Error Alert */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <span className="text-red-800">{error}</span>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto text-red-600 hover:text-red-800"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Main Content Area with Sidebar */}
+        <div className="flex gap-8">
+          {/* Side Panel Navigation */}
+          <div className="w-64 bg-white rounded-xl shadow-sm border border-gray-200 h-fit">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Admin Panel</h3>
+              <p className="text-sm text-gray-500">Manage educational content</p>
+            </div>
+            <nav className="p-4 space-y-2">
+              {[
+                { id: 'chunks', label: 'Content Chunks', icon: FileText, count: chunks.length },
+                { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
+                { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
+                { id: 'reports', label: 'Report Template', icon: BarChart3, count: hasBaseTemplate ? 1 : 0 },
+                { id: 'settings', label: 'Settings', icon: Settings },
+              ].map(({ id, label, icon: Icon, count }) => (
+                <button
+                  key={id}
+                  onClick={() => setCurrentTab(id as AdminTab)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
+                    currentTab === id
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="flex-1">{label}</span>
+                  {count !== undefined && (
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      currentTab === id ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200">
+          {currentTab === 'chunks' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Content Chunks</h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    {chunks.length} content chunks
+                  </span>
+                  <button
+                    onClick={() => setShowUploadForm(!showUploadForm)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {showUploadForm ? 'Cancel Upload' : 'Upload New Chunk'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible Upload Form */}
+              {showUploadForm && (
+                <form onSubmit={uploadChunk} className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-medium mb-4">Upload New Chunk</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Chunk Title
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., Retirement Strategy Overview"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Text File
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      name="file"
+                      accept=".txt,.md"
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Ending Question
+                  </label>
+                  <textarea
+                    name="question"
+                    required
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="What question should end this chunk to engage the user?"
+                  />
+                </div>
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      type="submit"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Upload Chunk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowUploadForm(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Enhanced Chunks List with Drag & Drop */}
+              <div className="space-y-4">
+                {chunks.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg mb-2">No educational content yet</p>
+                    <p className="text-sm">Upload your first educational content chunk above to get started.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {chunks.map((chunk, index) => (
+                      <div
+                        key={chunk.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, chunk.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
+                        className={`border-2 rounded-lg p-4 transition-all cursor-move ${
+                          draggedChunk === chunk.id
+                            ? 'border-blue-400 bg-blue-50 shadow-lg scale-105'
+                            : 'border-gray-200 bg-white hover:shadow-md'
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Drag Handle */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <GripVertical className="w-5 h-5 text-gray-400" />
+                            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              #{index + 1}
+                            </span>
+                          </div>
+                          
+                          {/* Content */}
+                          <div className="flex-1">
+                            {editingChunk?.id === chunk.id ? (
+                              /* Edit Form */
+                              <form onSubmit={updateChunkFromFile} className="space-y-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Chunk Title
+                                  </label>
+                                  <input
+                                    type="text"
+                                    name="title"
+                                    defaultValue={chunk.title}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Text File (optional - leave empty to keep current content)
+                                  </label>
+                                  <input
+                                    ref={editFileInputRef}
+                                    type="file"
+                                    name="file"
+                                    accept=".txt,.md"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Ending Question
+                                  </label>
+                                  <textarea
+                                    name="question"
+                                    defaultValue={chunk.question}
+                                    rows={3}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                </div>
+                                <div className="flex gap-3">
+                                  <button
+                                    type="submit"
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                    Save Changes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingChunk(null)}
+                                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </form>
+                            ) : (
+                              /* Display Mode */
+                              <div>
+                                <div className="flex items-center gap-3 mb-3">
+                                  <h3 className="text-lg font-semibold text-gray-900">
+                                    {chunk.title}
+                                  </h3>
+                                </div>
+                            
+                            <div className="grid md:grid-cols-2 gap-4 mb-3">
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Content:</span> {chunk.content.length} characters
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Created:</span> {new Date(chunk.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            
+                            {/* Content Summary */}
+                            <div className="bg-blue-50 rounded-md p-3 mb-3">
+                              <p className="text-sm font-medium text-blue-700 mb-1">Summary:</p>
+                              <ChunkSummary chunkId={chunk.id} content={chunk.content} generateSummary={generateSummary} />
+                            </div>
+                            
+                                <div className="bg-gray-50 rounded-md p-3 mb-3">
+                                  <p className="text-sm font-medium text-gray-700 mb-1">Question:</p>
+                                  <p className="text-gray-800">{chunk.question}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Actions */}
+                          {editingChunk?.id !== chunk.id && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => previewChunk(chunk)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Open in new window"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => startEditChunk(chunk)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Edit chunk"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => exportChunk(chunk)}
+                                className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                title="Export as file"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteChunk(chunk.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Delete chunk"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {currentTab === 'settings' && (
+            <div className="p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">System Settings</h2>
+              
+              {/* Settings Sub-tabs */}
+              <div className="border-b border-gray-200 mb-6">
+                <nav className="-mb-px flex space-x-8">
+                  {[
+                    { id: 'general', name: 'General', icon: Settings },
+                    { id: 'voice', name: 'Voice Settings', icon: Settings },
+                    { id: 'ui', name: 'UI Settings', icon: Settings }
+                  ].map(({ id, name, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setCurrentSettingsTab(id as SettingsTab)}
+                      className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
+                        currentSettingsTab === id
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {name}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* General Settings */}
+              {currentSettingsTab === 'general' && (
+                <form onSubmit={updateSettings} className="max-w-2xl space-y-6">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="personalizationEnabled"
+                      name="personalizationEnabled"
+                      defaultChecked={settings?.personalizationEnabled || false}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="personalizationEnabled" className="ml-2 block text-sm text-gray-900">
+                      Enable personalization by default
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    When enabled, the system will use full conversation history to personalize responses and content
+                  </p>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="conversationAware"
+                      name="conversationAware"
+                      defaultChecked={settings?.conversationAware !== false}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="conversationAware" className="ml-2 block text-sm text-gray-900">
+                      Enable conversation awareness by default
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    When enabled, the system will generate smooth transitions between educational content chunks based on conversation history
+                  </p>
+
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save General Settings
+                  </button>
+                </form>
+              )}
+
+              {/* Voice Settings */}
+              {currentSettingsTab === 'voice' && (
+                <form onSubmit={updateSettings} className="max-w-2xl space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ElevenLabs Voice ID
+                    </label>
+                    <input
+                      type="text"
+                      name="voiceId"
+                      defaultValue={settings?.voiceId || ''}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., pNInz6obpgDQGcFmaJgB"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      The ElevenLabs voice ID to use for all audio generation
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Voice Characteristics
+                    </label>
+                    <textarea
+                      name="voiceDescription"
+                      rows={3}
+                      defaultValue={settings?.voiceDescription || ''}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., Make voice deeper and slower, less nasal, more authoritative"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Describe how you want the voice to sound using natural language
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Currency Formatting
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          id="currencyRupees"
+                          name="currencyFormat"
+                          value="rupees"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <label htmlFor="currencyRupees" className="ml-2 block text-sm text-gray-900">
+                          Always say "rupees" (recommended for voice)
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="radio"
+                          id="currencySymbol"
+                          name="currencyFormat"
+                          value="symbol"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                        />
+                        <label htmlFor="currencySymbol" className="ml-2 block text-sm text-gray-900">
+                          Use symbols (₹, Rs) for text display
+                        </label>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Choose how currency should be formatted in voice responses
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Number Formatting
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="spellOutNumbers"
+                          name="spellOutNumbers"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="spellOutNumbers" className="ml-2 block text-sm text-gray-900">
+                          Spell out numbers ("thirty thousand" instead of "30K")
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="useIndianSystem"
+                          name="useIndianSystem"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="useIndianSystem" className="ml-2 block text-sm text-gray-900">
+                          Use Indian number system ("one lakh", "one crore")
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Response Length
+                    </label>
+                    <input
+                      type="number"
+                      name="maxResponseSeconds"
+                      defaultValue={45}
+                      min={15}
+                      max={120}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-500">seconds maximum</span>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Maximum length for voice responses to maintain engagement
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Voice Settings
+                  </button>
+                </form>
+              )}
+
+              {/* UI Settings */}
+              {currentSettingsTab === 'ui' && (
+                <form onSubmit={updateUISettings} className="max-w-2xl space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Educational Content Settings</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="useStructuredConversation"
+                          name="useStructuredConversation"
+                          defaultChecked={settings?.useStructuredConversation ?? true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="useStructuredConversation" className="ml-2 block text-sm text-gray-900">
+                          <span className="font-medium">Use Structured Conversation (Chunks)</span>
+                          <div className="text-xs text-gray-500 mt-1">
+                            When enabled, uses structured conversation with chunks. When disabled, allows open-ended conversation.
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Interface Toggles</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="showEducationalToggle"
+                          name="showEducationalToggle"
+                          defaultChecked={uiPreferences.showEducationalToggle}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="showEducationalToggle" className="ml-2 block text-sm text-gray-900">
+                          Show Educational Mode toggle in interface
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="showReportsToggle"
+                          name="showReportsToggle"
+                          defaultChecked={uiPreferences.showReportsToggle}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="showReportsToggle" className="ml-2 block text-sm text-gray-900">
+                          Show Reports Generation toggle in interface
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="showKnowledgeCitations"
+                          name="showKnowledgeCitations"
+                          defaultChecked={uiPreferences.showKnowledgeCitations}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="showKnowledgeCitations" className="ml-2 block text-sm text-gray-900">
+                          Show knowledge base citations in responses
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Interface Behavior</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="autoScrollEnabled"
+                          name="autoScrollEnabled"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="autoScrollEnabled" className="ml-2 block text-sm text-gray-900">
+                          Auto-scroll during conversations
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="showProgressIndicators"
+                          name="showProgressIndicators"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="showProgressIndicators" className="ml-2 block text-sm text-gray-900">
+                          Show session progress indicators
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="enableChunkProgression"
+                          name="enableChunkProgression"
+                          defaultChecked={true}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="enableChunkProgression" className="ml-2 block text-sm text-gray-900">
+                          Enable visual chunk progression in educational mode
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Response Timing
+                    </label>
+                    <input
+                      type="number"
+                      name="responseDelayMs"
+                      defaultValue={500}
+                      min={0}
+                      max={3000}
+                      step={100}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-500">milliseconds delay</span>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Delay before showing AI responses to improve perceived naturalness
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save UI Settings
+                  </button>
+                </form>
+              )}
+
+            </div>
+          )}
+
+          {currentTab === 'prompts' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">System Prompts</h2>
+                <div className="text-sm text-gray-500">
+                  {prompts.length} prompt types configured
+                </div>
+              </div>
+
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <span className="font-medium">Note:</span> These are the three core prompt types used by the system. You can edit their content, but new prompt types require developer implementation to define when and how they're used.
+                </p>
+              </div>
+              
+              <div className="space-y-6">
+                {['content', 'qa', 'report'].map((type) => {
+                  const prompt = prompts.find(p => p.type === type);
+                  return (
+                    <div key={type} className="border border-gray-200 rounded-lg">
+                      <div className="p-4 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900 capitalize">
+                              {type} Prompt
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {type === 'content' && 'Used for delivering educational content'}
+                              {type === 'qa' && 'Used for personalized responses and interactions'}
+                              {type === 'report' && 'Used for generating session summaries'}
+                            </p>
+                          </div>
+                          {prompt && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => previewSystemPrompt(prompt)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Open in new window"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingPrompt(prompt)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Edit prompt"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => exportSystemPrompt(prompt)}
+                                className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                title="Export as file"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        {prompt ? (
+                          editingPrompt?.id === prompt.id ? (
+                            // Edit Form
+                            <form onSubmit={updateSystemPrompt} className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Text File (optional - leave empty to keep current content)
+                                </label>
+                                <input
+                                  type="file"
+                                  name="file"
+                                  accept=".txt,.md"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <p className="mt-1 text-sm text-gray-500">
+                                  Upload a text file to replace the current system prompt content
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 p-4 rounded-md">
+                                <p className="text-sm font-medium text-gray-700 mb-2">Current content preview:</p>
+                                <pre className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                  {prompt.content.substring(0, 200)}
+                                  {prompt.content.length > 200 && '...'}
+                                </pre>
+                              </div>
+                              <div className="flex gap-3">
+                                <button
+                                  type="submit"
+                                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                >
+                                  <Save className="w-4 h-4" />
+                                  Save Changes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPrompt(null)}
+                                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            // Display Mode
+                            <div>
+                              <div className="grid md:grid-cols-2 gap-4 mb-3">
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">Content:</span> {prompt.content.length} characters
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">Updated:</span> {new Date(prompt.updatedAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                              
+                              {/* Content Preview */}
+                              <div className="bg-gray-50 p-4 rounded-md">
+                                <div className="mb-2">
+                                  <p className="text-sm font-medium text-gray-700">Preview:</p>
+                                </div>
+                                <pre className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                  {prompt.content.substring(0, 300)}
+                                  {prompt.content.length > 300 && '...'}
+                                </pre>
+                                {prompt.content.length > 300 && (
+                                  <div className="mt-2 text-center">
+                                    <button
+                                      onClick={() => previewSystemPrompt(prompt)}
+                                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Click to view full content →
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Database className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                            <p className="text-lg mb-2">No {type} prompt found</p>
+                            <p className="text-sm">This prompt type should be created during database seeding. Run the seed endpoint if missing.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {currentTab === 'knowledge' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Knowledge Base</h2>
+                <button
+                  onClick={() => setShowUploadKnowledgeForm(!showUploadKnowledgeForm)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  {showUploadKnowledgeForm ? 'Cancel' : 'Upload File'}
+                </button>
+              </div>
+
+              {/* Upload Form */}
+              {showUploadKnowledgeForm && (
+                <form onSubmit={uploadKnowledgeFile} className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="text-lg font-medium mb-4">Upload Knowledge Base File</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        File
+                      </label>
+                      <input
+                        ref={knowledgeFileInputRef}
+                        type="file"
+                        name="file"
+                        accept=".txt,.md,.pdf,.csv"
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Supported formats: TXT, PDF, CSV, Markdown
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Indexed Content (optional)
+                      </label>
+                      <textarea
+                        name="indexedContent"
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Provide a summary or key points for better Q&A matching..."
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Optional: Add searchable content to improve Q&A responses
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowUploadKnowledgeForm(false)}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  Upload files to enhance the Q&A capabilities. The system will use these files to provide more accurate and detailed responses during personalized sessions.
+                </p>
+              </div>
+
+              {knowledgeFiles.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Upload className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg mb-2">No knowledge base files uploaded yet</p>
+                  <p className="text-sm">Upload your first file to enhance the Q&A capabilities.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {knowledgeFiles.map((file) => (
+                    <div key={file.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-medium text-gray-900">{file.filename}</h3>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                              {file.fileType}
+                            </span>
+                          </div>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <p className="text-sm text-gray-500">
+                              <span className="font-medium">Uploaded:</span> {new Date(file.uploadedAt).toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              <span className="font-medium">Type:</span> {file.fileType}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 ml-4">
+                          <button
+                            onClick={() => deleteKnowledgeFile(file.id, file.filename)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete file"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentTab === 'reports' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Report Management</h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    Base template & generated reports
+                  </span>
+                </div>
+              </div>
+
+              {/* Base Report Template Section - Primary Focus */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Base Report Template
+                </h3>
+                
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 mb-2">
+                    <span className="font-medium">Report Structure:</span> Each generated report contains three parts:
+                  </p>
+                  <div className="grid md:grid-cols-3 gap-4 text-sm text-blue-700">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-blue-900 font-bold text-xs">1</div>
+                      <span>Your PDF template</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-blue-900 font-bold text-xs">2</div>
+                      <span>Q&A summary</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-blue-900 font-bold text-xs">3</div>
+                      <span>Full transcript</span>
+                    </div>
+                  </div>
+                </div>
+
+                {hasBaseTemplate ? (
+                  <div className="space-y-6">
+                    {/* Current Template Status */}
+                    <div className="border border-green-200 bg-green-50 rounded-lg p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                          <FileText className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-green-800 mb-1">Base template is active</h4>
+                          <p className="text-sm text-green-600 mb-3">
+                            All new session reports will use your custom PDF template as the first section, 
+                            followed by auto-generated Q&A summaries and conversation transcripts.
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Template Active
+                            </span>
+                            <span className="text-sm text-green-600">
+                              Uploaded: {settings?.baseReportPath ? new Date().toLocaleDateString() : 'Unknown'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={removeBaseTemplate}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove base template"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Replace Template Form */}
+                    <div className="border border-gray-200 rounded-lg p-6">
+                      <h4 className="font-medium text-gray-900 mb-3">Replace Base Template</h4>
+                      <form onSubmit={uploadBaseTemplate} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Upload New PDF Template
+                          </label>
+                          <input
+                            ref={baseTemplateInputRef}
+                            type="file"
+                            name="file"
+                            accept=".pdf"
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          />
+                          <p className="mt-1 text-sm text-gray-500">
+                            Upload a new PDF template to replace the current one. Should include your branding, intro content, and styling.
+                          </p>
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            type="submit"
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+                          >
+                            <Upload className="w-4 h-4" />
+                            Replace Template
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                ) : (
+                  /* No Template - Upload Form */
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+                    <div className="text-center mb-6">
+                      <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">No base template uploaded</h4>
+                      <p className="text-gray-500 max-w-md mx-auto">
+                        Upload a PDF template to provide professional branding and formatting for all generated reports.
+                      </p>
+                    </div>
+                    
+                    <form onSubmit={uploadBaseTemplate} className="max-w-md mx-auto space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
+                          Upload Base Template PDF
+                        </label>
+                        <input
+                          ref={baseTemplateInputRef}
+                          type="file"
+                          name="file"
+                          accept=".pdf"
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <p className="mt-1 text-sm text-gray-500 text-left">
+                          This PDF will become the first part of every generated report
+                        </p>
+                      </div>
+                      <button
+                        type="submit"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload Template
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Generated Reports Section - Secondary */}
+              <div className="border-t pt-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Recent Generated Reports
+                  <span className="text-sm font-normal text-gray-500">({reports.length} total)</span>
+                </h3>
+
+                {reports.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">No session reports generated yet</p>
+                    <p className="text-xs text-gray-400">Reports will appear here as users complete educational sessions</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3 mb-6">
+                      {reports.slice(0, 5).map((report) => (
+                        <div key={report.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-1">
+                                <span className="font-medium text-gray-900">
+                                  Session {report.sessionId.slice(-8)}
+                                </span>
+                                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                                  PDF
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>Generated: {new Date(report.generatedAt).toLocaleDateString()}</span>
+                                <span>at {new Date(report.generatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => downloadReport(report.id, report.sessionId)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Download PDF report"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteReport(report.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Delete report"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {reports.length > 5 && (
+                      <div className="text-center py-3 border-t">
+                        <p className="text-sm text-gray-500">
+                          Showing 5 of {reports.length} reports • 
+                          <span className="text-blue-600 ml-1 cursor-pointer hover:underline">View all reports</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Quick Stats */}
+                    <div className="mt-6 grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">This Week</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {reports.filter(r => {
+                            const reportDate = new Date(r.generatedAt);
+                            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                            return reportDate >= weekAgo;
+                          }).length}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">This Month</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {reports.filter(r => {
+                            const reportDate = new Date(r.generatedAt);
+                            const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                            return reportDate >= monthAgo;
+                          }).length}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Unique Sessions</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {new Set(reports.map(r => r.sessionId)).size}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+}

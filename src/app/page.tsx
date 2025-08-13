@@ -1,5 +1,5 @@
-import HomePage from '@/components/HomePage';
+import ConversationalInterface from '@/components/ConversationalInterface';
 
 export default function Home() {
-  return <HomePage />;
+  return <ConversationalInterface />;
 }

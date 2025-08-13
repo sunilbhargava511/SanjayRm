@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Article, Message } from '@/types';
-import promptsData from '@/data/prompts.json';
+import { db } from './database';
+import * as schema from './database/schema';
 
 export class ClaudeService {
   private client: Anthropic;
@@ -10,6 +11,26 @@ export class ClaudeService {
       throw new Error('Anthropic API key is required');
     }
     this.client = new Anthropic({ apiKey });
+  }
+
+  // Load prompt from database by type
+  private async getPrompt(type: 'content' | 'qa' | 'report'): Promise<string> {
+    try {
+      const prompt = await db.select().from(schema.systemPrompts)
+        .where(schema.systemPrompts.type === type)
+        .where(schema.systemPrompts.active === true)
+        .limit(1);
+      
+      if (prompt.length === 0) {
+        throw new Error(`No active prompt found for type: ${type}`);
+      }
+      
+      return prompt[0].content;
+    } catch (error) {
+      console.error(`Failed to load ${type} prompt:`, error);
+      // Fallback to basic prompt to prevent system failure
+      return `You are a helpful AI assistant specializing in financial advice.`;
+    }
   }
 
   private searchRelevantArticles(query: string, limit = 3): Article[] {
@@ -53,13 +74,18 @@ export class ClaudeService {
   }
 
   async cleanupVoiceTranscript(transcript: string): Promise<string> {
+    // Technical voice cleanup prompt (kept in code, not admin-controllable)
+    const voiceCleanupPrompt = `The user spoke the following text using voice recognition. Clean it up to be coherent and grammatically correct while preserving the original meaning and intent. Remove filler words, fix run-on sentences, and correct obvious speech-to-text errors. Keep the tone conversational but clear:
+
+${transcript}`;
+
     try {
       const message = await this.client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 1000,
         messages: [{
           role: 'user',
-          content: promptsData.voice_cleanup_prompt.replace('{transcript}', transcript)
+          content: voiceCleanupPrompt
         }]
       });
 
@@ -67,6 +93,35 @@ export class ClaudeService {
     } catch (error) {
       console.error('Error cleaning up voice transcript:', error);
       return transcript; // Return original if cleanup fails
+    }
+  }
+
+  // Simple message sending (for lead-in generation and other utilities)
+  async sendMessage(
+    messages: Array<{role: 'user' | 'assistant' | 'system', content: string}>,
+    systemPrompt?: string
+  ): Promise<string> {
+    try {
+      const response = await this.client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1000,
+        temperature: 0.7,
+        system: systemPrompt || 'You are a helpful AI assistant.',
+        messages: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      });
+
+      const content = response.content[0];
+      if (content.type === 'text') {
+        return content.text;
+      }
+      
+      throw new Error('Unexpected response format from Claude');
+    } catch (error) {
+      console.error('Claude API error:', error);
+      throw new Error(`Failed to get response from Claude: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -78,15 +133,16 @@ export class ClaudeService {
       // Search for relevant articles based on the user's query
       const relevantArticles = this.searchRelevantArticles(userQuery);
       
-      // Prepare context with relevant articles
-      let contextPrompt = promptsData.system_prompt;
+      // Load main prompt from database (use QA prompt for general conversations)
+      let contextPrompt = await this.getPrompt('qa');
       
       if (relevantArticles.length > 0) {
         const articlesContext = relevantArticles.map(article => 
           `Title: ${article.title}\nSummary: ${article.summary}\nContent: ${article.content.substring(0, 1000)}...\n`
         ).join('\n---\n');
         
-        contextPrompt += '\n\n' + promptsData.knowledge_context_prompt.replace('{articles}', articlesContext);
+        // Add knowledge context to the prompt
+        contextPrompt += `\n\nRELEVANT KNOWLEDGE BASE CONTENT:\n${articlesContext}\n\nUse this context to provide informed, specific advice while maintaining your warm, conversational tone.`;
       }
 
       // Convert messages to Claude format
@@ -128,12 +184,16 @@ export class ClaudeService {
         `${msg.type === 'user' ? 'User' : 'Sanjay'}: ${msg.content}`
       ).join('\n');
 
+      // Use reports prompt from database for session summaries
+      const reportPrompt = await this.getPrompt('report');
+      const fullPrompt = `${reportPrompt}\n\nConversation:\n${messageHistory}`;
+
       const response = await this.client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 500,
         messages: [{
           role: 'user',
-          content: promptsData.session_summary_prompt.replace('{messages}', messageHistory)
+          content: fullPrompt
         }]
       });
 
@@ -147,15 +207,22 @@ export class ClaudeService {
   }
 
   async extractSessionNotes(userMessage: string, assistantMessage: string): Promise<Array<{ content: string; type: 'insight' | 'action' | 'recommendation' | 'question' }>> {
+    // Technical note extraction prompt (kept in code, not admin-controllable)
+    const noteExtractionPrompt = `From this message exchange, extract any important insights, recommendations, or action items that should be saved to the user's session notebook. Format as brief, actionable notes. If there are no significant insights worth saving, return an empty array.
+
+Message exchange:
+User: ${userMessage}
+Assistant: ${assistantMessage}
+
+Return a JSON array of note objects with fields: content, type ('insight', 'action', 'recommendation', or 'question')`;
+
     try {
       const response = await this.client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 1000,
         messages: [{
           role: 'user',
-          content: promptsData.note_extraction_prompt
-            .replace('{user_message}', userMessage)
-            .replace('{assistant_message}', assistantMessage)
+          content: noteExtractionPrompt
         }]
       });
 
