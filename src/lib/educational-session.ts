@@ -65,10 +65,19 @@ export class EducationalSessionService {
   }
 
   async updateSession(sessionId: string, updates: Partial<EducationalSession>): Promise<void> {
+    // Convert Date objects to strings for database storage
+    const dbUpdates: any = { ...updates };
+    if (dbUpdates.createdAt instanceof Date) {
+      dbUpdates.createdAt = dbUpdates.createdAt.toISOString();
+    }
+    if (dbUpdates.updatedAt instanceof Date) {
+      dbUpdates.updatedAt = dbUpdates.updatedAt.toISOString();
+    }
+    
     await db
       .update(schema.conversations)
       .set({
-        ...updates,
+        ...dbUpdates,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(schema.conversations.id, sessionId));
@@ -201,7 +210,8 @@ export class EducationalSessionService {
     const responses = await this.getSessionResponses(sessionId);
 
     return {
-      session,
+      conversation: session, // ConversationState property
+      session, // EducationalSessionState property (alias)
       chunks,
       currentChunk,
       responses,

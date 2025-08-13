@@ -60,7 +60,7 @@ export class KnowledgeSearchService {
     const lines = content.split('\n');
     
     // Extract title (first # header)
-    const titleLine = lines.find(line => line.startsWith('# '));
+    const titleLine = lines.find((line: string) => line.startsWith('# '));
     const title = titleLine ? titleLine.replace('# ', '') : file.filename.replace('.md', '');
     
     // Extract metadata
@@ -88,7 +88,7 @@ export class KnowledgeSearchService {
         // Extract tags (lines with hashtags)
         const lineTags = line.match(/#\w+(?:_\w+)*/g);
         if (lineTags) {
-          tags.push(...lineTags.map(tag => tag.replace('#', '').replace(/_/g, ' ')));
+          tags.push(...lineTags.map((tag: string) => tag.replace('#', '').replace(/_/g, ' ')));
         }
       }
     }

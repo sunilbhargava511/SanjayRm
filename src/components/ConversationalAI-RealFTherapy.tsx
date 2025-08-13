@@ -117,7 +117,7 @@ export default function ConversationalAI({
     },
     onError: (error) => {
       console.error('🔍 [FRONTEND-DEBUG] ElevenLabs connection error:', error);
-      handleError(typeof error === 'string' ? error : error?.message || 'Conversation error');
+      handleError(typeof error === 'string' ? error : (error as any)?.message || 'Conversation error');
     },
     onAudio: (audio) => {
       console.log('[Real FTherapy] Audio event:', audio);

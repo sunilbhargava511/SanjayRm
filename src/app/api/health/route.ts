@@ -5,7 +5,7 @@ import * as schema from '@/lib/database/schema';
 export async function GET(request: NextRequest) {
   try {
     // Basic health check
-    const health = {
+    const health: any = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,

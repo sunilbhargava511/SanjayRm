@@ -90,15 +90,15 @@ export class SettingsStorage {
   }
 
   static updateVoiceSettings(voiceSettings: Partial<VoicePreferences>): void {
-    this.saveSettings({ voice: voiceSettings });
+    this.saveSettings({ voice: voiceSettings as any });
   }
 
   static updateConversationSettings(conversationSettings: Partial<ConversationPreferences>): void {
-    this.saveSettings({ conversation: conversationSettings });
+    this.saveSettings({ conversation: conversationSettings as any });
   }
 
   static updateUISettings(uiSettings: Partial<UIPreferences>): void {
-    this.saveSettings({ ui: uiSettings });
+    this.saveSettings({ ui: uiSettings as any });
   }
 
   static resetSettings(): void {

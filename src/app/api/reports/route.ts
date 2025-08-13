@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         const downloadReport = downloadReports[0];
         
         // Return PDF data
-        return new NextResponse(downloadReport.reportData as Uint8Array, {
+        return new NextResponse(Buffer.from(downloadReport.reportData as any), {
           headers: {
             'Content-Type': 'application/pdf',
             'Content-Disposition': `attachment; filename="session-report-${downloadReport.sessionId}.pdf"`,
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
             .from(schema.sessionReports);
         }
         
-        const reportList = getAllReports.map(r => ({
+        const reportList = allReports.map(r => ({
           id: r.id,
           sessionId: r.sessionId,
           reportPath: r.reportPath,
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
 
       const getReport = getReports[0];
       
-      return new NextResponse(getReport.reportData as Uint8Array, {
+      return new NextResponse(Buffer.from(getReport.reportData as any), {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="session-report-${getReport.sessionId}.pdf"`,

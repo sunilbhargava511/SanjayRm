@@ -4,6 +4,7 @@ import { knowledgeSearch, SearchResult } from './knowledge-search';
 import { ERROR_MESSAGES } from './system-prompts';
 import { db } from './database';
 import * as schema from './database/schema';
+import { eq, and } from 'drizzle-orm';
 
 export interface ClaudeConfig {
   model: string;
@@ -65,8 +66,10 @@ export class EnhancedClaudeService {
   private async getPrompt(type: 'content' | 'qa' | 'report'): Promise<string> {
     try {
       const prompt = await db.select().from(schema.systemPrompts)
-        .where(schema.systemPrompts.type === type)
-        .where(schema.systemPrompts.active === true)
+        .where(and(
+          eq(schema.systemPrompts.type, type),
+          eq(schema.systemPrompts.active, true)
+        ))
         .limit(1);
       
       if (prompt.length === 0) {

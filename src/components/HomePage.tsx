@@ -109,7 +109,7 @@ export default function HomePage() {
   ];
 
   if (currentView === 'voice') {
-    return <ConversationalInterface onBack={() => setCurrentView('home')} />;
+    return <ConversationalInterface />;
   }
 
 

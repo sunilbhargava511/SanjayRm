@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Generate response based on request
-    let response;
+    let response: any;
     
     if (sector) {
       const sectorData = MARKET_DATA.sectors[sector as keyof typeof MARKET_DATA.sectors];

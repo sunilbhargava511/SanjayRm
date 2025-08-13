@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
               console.log('🔍 [SESSION-DEBUG] No educational_session_id in session metadata');
             }
           } catch (error) {
-            console.log('🔍 [SESSION-DEBUG] Session lookup failed:', error.message);
+            console.log('🔍 [SESSION-DEBUG] Session lookup failed:', error instanceof Error ? error.message : 'Unknown error');
           }
         }
         
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
               console.log('🎯 [STRUCTURED] Using educational session for response generation');
               
               // Use educational session service directly (no HTTP call needed since we're already in the API)
-              const conversationHistory = messages.map(msg => ({
+              const conversationHistory = messages.map((msg: any) => ({
                 role: msg.role as 'user' | 'assistant' | 'system',
                 content: msg.content
               }));
@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
               
               // Use Claude service for open-ended conversation
               const claudeService = getClaudeService();
-              const claudeMessages = messages.map(msg => ({
+              const claudeMessages = messages.map((msg: any) => ({
                 id: `msg_${Date.now()}`,
                 content: msg.content,
                 sender: msg.role === 'user' ? 'user' : 'assistant',
@@ -530,9 +530,9 @@ export async function POST(request: NextRequest) {
               finish_reason: 'stop'
             }],
             usage: {
-              prompt_tokens: messages.reduce((sum, msg) => sum + msg.content.length / 4, 0),
+              prompt_tokens: messages.reduce((sum: number, msg: any) => sum + msg.content.length / 4, 0),
               completion_tokens: responseContent.length / 4,
-              total_tokens: (messages.reduce((sum, msg) => sum + msg.content.length, 0) + responseContent.length) / 4
+              total_tokens: (messages.reduce((sum: number, msg: any) => sum + msg.content.length, 0) + responseContent.length) / 4
             }
           };
           

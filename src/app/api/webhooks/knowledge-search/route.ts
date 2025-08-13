@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
 }
 
 function generateSearchSuggestions(originalQuery: string, results: any[]): string[] {
-  const suggestions = [];
+  const suggestions: string[] = [];
   
   // If no results, suggest broader topics
   if (results.length === 0) {

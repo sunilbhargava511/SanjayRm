@@ -275,7 +275,7 @@ Now deliver this content in your warm, conversational style and end with the que
                     content: 'Please continue with the next topic.'
                   }];
                   
-                  const nextChunkResponse = await claudeService.sendMessage(nextContentMessages, nextEnhancedSystemPrompt);
+                  const nextChunkResponse = await claudeService.sendMessage(nextContentMessages as any, nextEnhancedSystemPrompt);
                   aiResponse += `\n\n---\n\n${nextChunkResponse}`;
                 }
               }

@@ -51,7 +51,7 @@ export class ElevenLabsConversationService {
       });
 
       // Build options for Conversation.startSession (matching FTherapy pattern)
-      const options: PartialOptions = {
+      const options: any = {
         // Use signed URL for WebSocket connections (FTherapy pattern)
         ...(config.signedUrl && { 
           signedUrl: config.signedUrl,
@@ -85,10 +85,16 @@ export class ElevenLabsConversationService {
         // Callbacks with safety fallbacks
         onConnect: config.callbacks?.onConnect || (() => {}),
         onDisconnect: config.callbacks?.onDisconnect || (() => {}),
-        onMessage: config.callbacks?.onMessage || (() => {}),
+        onMessage: config.callbacks?.onMessage 
+          ? (props: { message: string; source: string }) => config.callbacks!.onMessage!({ role: props.source, message: props.message })
+          : (() => {}),
         onError: config.callbacks?.onError || (() => {}),
-        onStatusChange: config.callbacks?.onStatusChange || (() => {}),
-        onModeChange: config.callbacks?.onModeChange || (() => {})
+        onStatusChange: config.callbacks?.onStatusChange 
+          ? (prop: { status: string }) => config.callbacks!.onStatusChange!(prop.status)
+          : (() => {}),
+        onModeChange: config.callbacks?.onModeChange 
+          ? (prop: { mode: string }) => config.callbacks!.onModeChange!({ mode: prop.mode, isInterrupting: false })
+          : (() => {})
       };
 
       console.log('[ElevenLabs] Starting conversation with options:', {

@@ -42,7 +42,7 @@ export class ReportGenerator {
       }
 
       // The template is stored as blob in the database
-      return settings[0].baseReportTemplate || null;
+      return (settings[0].baseReportTemplate as Uint8Array) || null;
     } catch (error) {
       console.error('Error fetching base template:', error);
       return null;
