@@ -32,15 +32,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Session Registry] Registering session: ${sessionId}`, conversationId ? `with conversation: ${conversationId}` : '');
 
-    // Register session with the session manager
-    await sessionManager.registerSession({
+    // Register session with the session manager  
+    const sessionData = {
       sessionId,
       conversationId,
       registeredAt: timestamp || new Date().toISOString(),
       lastActivity: new Date().toISOString(),
       messages: [],
       metadata: metadata || {}
-    });
+    };
+
+    await sessionManager.registerSession(sessionData);
     
     // If we have a conversation ID, map it to the session
     if (conversationId) {

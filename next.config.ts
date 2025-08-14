@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   // Environment variables that should be available on the client
   env: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
+    NEXT_PUBLIC_ELEVENLABS_AGENT_ID: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || '',
+    NEXT_PUBLIC_ELEVENLABS_API_KEY: process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
   },
   
   // Headers for security and performance

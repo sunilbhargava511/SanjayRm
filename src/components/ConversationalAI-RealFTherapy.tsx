@@ -50,39 +50,35 @@ export default function ConversationalAI({
     onError?.(errorMessage);
   }, [updateStatus, onError]);
 
-  // Real FTherapy Pattern: useConversation hook with all callbacks
+  // Working Pattern: useConversation hook without apiKey (same as test app)
   const conversation = useConversation({
-    apiKey: process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY!,
-    onConnect: async ({ conversationId }) => {
-      console.log('🔍 [FRONTEND-DEBUG] ElevenLabs connected with conversationId:', conversationId);
-      conversationIdRef.current = conversationId;
-      
-      // Create new educational session using conversation_id as the key
-      // (This replaces the educational session created in startConversation)
-      try {
+    onConnect: (details) => {
+      console.log('🔍 [FRONTEND-DEBUG] ElevenLabs connected:', details);
+      if (details.conversationId) {
+        conversationIdRef.current = details.conversationId;
+        
+        // Create educational session using conversation_id as the key
         const educationalSessionId = localStorage.getItem('currentEducationalSessionId');
         if (educationalSessionId) {
-          console.log('🔍 [FRONTEND-DEBUG] Creating final educational session with conversation_id as key:', conversationId);
+          console.log('🔍 [FRONTEND-DEBUG] Creating educational session with conversation_id:', details.conversationId);
           
-          const response = await fetch('/api/educational-session', {
+          fetch('/api/educational-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'create',
-              sessionId: conversationId, // Use conversation_id as session ID
-              // No explicit personalization/conversation aware settings - will use admin defaults
+              sessionId: details.conversationId,
             })
+          }).then(response => {
+            if (response.ok) {
+              console.log('🔍 [FRONTEND-DEBUG] Educational session created successfully');
+            } else {
+              console.error('🔍 [FRONTEND-DEBUG] Failed to create educational session');
+            }
+          }).catch(error => {
+            console.error('[Real FTherapy] Error creating educational session:', error);
           });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('🔍 [FRONTEND-DEBUG] Final educational session created successfully with ID:', conversationId);
-          } else {
-            console.error('🔍 [FRONTEND-DEBUG] Failed to create final educational session:', await response.text());
-          }
         }
-      } catch (error) {
-        console.error('[Real FTherapy] Error creating final educational session:', error);
       }
       
       updateStatus('connected');
@@ -316,27 +312,24 @@ export default function ConversationalAI({
 
       updateStatus('connecting');
       
-      // Step 5: Start conversation using REAL FTherapy pattern (useConversation hook)
+      // Step 5: Start conversation using test app's working pattern 
       console.log('[Real FTherapy] Starting conversation with agentId:', process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID);
       
       const sessionConfig = {
         agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID!,
-        connectionType: 'webrtc' as const, // Real FTherapy uses WebRTC
-        useWakeLock: true, // Prevent device sleep
+        connectionType: 'webrtc' as const,
         overrides: {
-          tts: { 
-            voiceId: 'MXGyTMlsvQgQ4BL0emIa', // Sanjay's voice
+          agent: {
+            firstMessage: welcomeMessage || "Hello! I'm Sanjay, your AI financial advisor. How can I help you today?"
+          },
+          tts: {
+            voiceId: 'MXGyTMlsvQgQ4BL0emIa',
             stability: 0.6,
             similarity_boost: 0.8,
             style: 0.4,
             use_speaker_boost: true,
-            speed: 0.85 // 15% slower for clarity
-          },
-          ...(welcomeMessage && {
-            agent: { 
-              firstMessage: welcomeMessage 
-            }
-          })
+            speed: 0.85
+          }
         }
       };
 

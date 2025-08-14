@@ -11,6 +11,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Settings,
 } from 'lucide-react';
 import { Session } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
@@ -149,6 +150,14 @@ export default function HomePage() {
                   Sessions
                 </button>
               )}
+              <a
+                href="/admin"
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Admin Settings"
+              >
+                <Settings className="w-5 h-5" />
+                Admin
+              </a>
             </div>
           </div>
         </div>

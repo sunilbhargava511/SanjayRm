@@ -456,61 +456,63 @@ export async function POST(request: NextRequest) {
         }
         
         if (isStreaming) {
-          // Initial chunk with voice settings (FTherapy pattern)
-          const initialChunk = {
-            id: `chatcmpl-${Date.now()}`,
+          // Use working 3-chunk pattern from test app (ElevenLabs compatible)
+          const completionId = `chatcmpl-${Date.now()}`;
+          const created = Math.floor(Date.now() / 1000);
+          const fingerprint = `fp_${Date.now().toString(36)}`;
+          const model = body.model || 'claude-3-5-sonnet-20241022';
+          
+          // OpenAI streaming format: role chunk, content chunk, final chunk
+          const roleChunk = {
+            id: completionId,
             object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: body.model || 'claude-3-5-sonnet-20241022',
-            choices: [{
-              index: 0,
-              delta: {
-                role: 'assistant',
-                content: '',
-                voice_settings: voiceSettings // Voice modulation parameters
-              },
-              finish_reason: null
-            }]
-          };
-          
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(initialChunk)}\n\n`));
-          
-          // Stream response word by word (FTherapy pattern)
-          const words = responseContent.split(' ');
-          for (let i = 0; i < words.length; i++) {
-            const word = words[i] + (i < words.length - 1 ? ' ' : '');
-            
-            const chunk = {
-              id: `chatcmpl-${Date.now()}`,
-              object: 'chat.completion.chunk',
-              created: Math.floor(Date.now() / 1000),
-              model: body.model || 'claude-3-5-sonnet-20241022',
-              choices: [{
+            created: created,
+            model: model,
+            system_fingerprint: fingerprint,
+            choices: [
+              {
                 index: 0,
-                delta: { content: word },
+                delta: { role: 'assistant', content: '' },
+                logprobs: null,
                 finish_reason: null
-              }]
-            };
-            
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-            
-            // Small delay for natural streaming (like FTherapy)
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-          
-          // Final chunk to signal completion (FTherapy pattern)
-          const finalChunk = {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: body.model || 'claude-3-5-sonnet-20241022',
-            choices: [{
-              index: 0,
-              delta: {},
-              finish_reason: 'stop'
-            }]
+              }
+            ]
           };
           
+          const contentChunk = {
+            id: completionId,
+            object: 'chat.completion.chunk',
+            created: created,
+            model: model,
+            system_fingerprint: fingerprint,
+            choices: [
+              {
+                index: 0,
+                delta: { content: responseContent },
+                logprobs: null,
+                finish_reason: null
+              }
+            ]
+          };
+          
+          const finalChunk = {
+            id: completionId,
+            object: 'chat.completion.chunk',
+            created: created,
+            model: model,
+            system_fingerprint: fingerprint,
+            choices: [
+              {
+                index: 0,
+                delta: {},
+                logprobs: null,
+                finish_reason: 'stop'
+              }
+            ]
+          };
+          
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`));
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           

@@ -14,7 +14,8 @@ import {
   GripVertical,
   Edit3,
   Download,
-  BarChart3
+  BarChart3,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   ContentChunk, 
@@ -906,7 +907,17 @@ export default function AdminPanel() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Financial Advisor - Admin Panel</h1>
+            <div className="flex items-center gap-4">
+              <a
+                href="/"
+                className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to Main Page"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                Back
+              </a>
+              <h1 className="text-2xl font-bold text-gray-900">Financial Advisor - Admin Panel</h1>
+            </div>
             <div className="text-sm text-gray-500">
               Educational Content Management
             </div>

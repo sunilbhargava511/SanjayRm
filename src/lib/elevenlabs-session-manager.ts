@@ -1,10 +1,12 @@
 /**
  * Session Manager for ElevenLabs Webhook Integration
- * Based on FTherapy working implementation pattern
+ * Database-backed implementation for production deployment
  */
 
-import fs from 'fs';
-import path from 'path';
+import { db } from '@/lib/database';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export interface SessionData {
   sessionId: string;
@@ -26,66 +28,132 @@ export interface SessionMessage {
   speaker: 'user' | 'agent';
 }
 
-// File-based storage for session data (persists across API calls)
-class FileStorageAdapter {
-  private storageDir: string;
+// Database table for ElevenLabs sessions
+const elevenlabsSessions = sqliteTable('elevenlabs_sessions', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  conversationId: text('conversation_id'),
+  therapistId: text('therapist_id'),
+  registeredAt: text('registered_at').notNull(),
+  lastActivity: text('last_activity'),
+  messages: text('messages'), // JSON string
+  metadata: text('metadata'), // JSON string
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
 
+// Database-backed storage adapter
+class DatabaseStorageAdapter {
   constructor() {
-    this.storageDir = path.join(process.cwd(), '.sessions');
-    // Ensure storage directory exists
-    if (!fs.existsSync(this.storageDir)) {
-      fs.mkdirSync(this.storageDir, { recursive: true });
+    // Initialize table if it doesn't exist
+    this.initializeTable();
+  }
+
+  private async initializeTable(): Promise<void> {
+    try {
+      // Create table if it doesn't exist
+      await db.run(sql`
+        CREATE TABLE IF NOT EXISTS elevenlabs_sessions (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          conversation_id TEXT,
+          therapist_id TEXT,
+          registered_at TEXT NOT NULL,
+          last_activity TEXT,
+          messages TEXT,
+          metadata TEXT,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+          updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        )
+      `);
+    } catch (error) {
+      console.error('[DatabaseStorageAdapter] Failed to initialize table:', error);
     }
   }
 
-  private getFilePath(key: string): string {
-    // Replace slashes with underscores to create flat file structure
-    const safeKey = key.replace(/\//g, '_');
-    return path.join(this.storageDir, `${safeKey}.json`);
-  }
-
   async save<T>(key: string, data: T): Promise<void> {
-    const filePath = this.getFilePath(key);
-    await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
+    try {
+      const serializedData = JSON.stringify(data);
+      const now = new Date().toISOString();
+      
+      const existing = await db.select()
+        .from(elevenlabsSessions)
+        .where(eq(elevenlabsSessions.id, key))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db.update(elevenlabsSessions)
+          .set({ 
+            metadata: serializedData,
+            updatedAt: now
+          })
+          .where(eq(elevenlabsSessions.id, key));
+      } else {
+        await db.insert(elevenlabsSessions).values({
+          id: key,
+          sessionId: key,
+          registeredAt: now,
+          lastActivity: now,
+          metadata: serializedData,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    } catch (error) {
+      console.error(`[DatabaseStorageAdapter] Error saving ${key}:`, error);
+      throw error;
+    }
   }
 
   async load<T>(key: string): Promise<T | null> {
     try {
-      const filePath = this.getFilePath(key);
-      if (fs.existsSync(filePath)) {
-        const data = await fs.promises.readFile(filePath, 'utf8');
-        return JSON.parse(data);
+      const result = await db.select()
+        .from(elevenlabsSessions)
+        .where(eq(elevenlabsSessions.id, key))
+        .limit(1);
+
+      if (result.length > 0) {
+        const record = result[0];
+        if (record.metadata) {
+          return JSON.parse(record.metadata);
+        }
       }
     } catch (error) {
-      console.error(`[FileStorageAdapter] Error loading ${key}:`, error);
+      console.error(`[DatabaseStorageAdapter] Error loading ${key}:`, error);
     }
     return null;
   }
 
   async delete(key: string): Promise<void> {
     try {
-      const filePath = this.getFilePath(key);
-      if (fs.existsSync(filePath)) {
-        await fs.promises.unlink(filePath);
-      }
+      await db.delete(elevenlabsSessions)
+        .where(eq(elevenlabsSessions.id, key));
     } catch (error) {
-      console.error(`[FileStorageAdapter] Error deleting ${key}:`, error);
+      console.error(`[DatabaseStorageAdapter] Error deleting ${key}:`, error);
     }
   }
 
   async exists(key: string): Promise<boolean> {
-    const filePath = this.getFilePath(key);
-    return fs.existsSync(filePath);
+    try {
+      const result = await db.select({ id: elevenlabsSessions.id })
+        .from(elevenlabsSessions)
+        .where(eq(elevenlabsSessions.id, key))
+        .limit(1);
+      return result.length > 0;
+    } catch (error) {
+      console.error(`[DatabaseStorageAdapter] Error checking existence of ${key}:`, error);
+      return false;
+    }
   }
 }
 
 export class SessionManager {
-  private storage: FileStorageAdapter;
+  private storage: DatabaseStorageAdapter;
   private sessionRegistry: Map<string, SessionData> = new Map();
   private static instance: SessionManager;
 
   constructor() {
-    this.storage = new FileStorageAdapter();
+    this.storage = new DatabaseStorageAdapter();
   }
 
   // Singleton pattern for consistent session management
