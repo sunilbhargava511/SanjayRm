@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, BookOpen, Clock, Tag, ArrowLeft, Filter, X } from 'lucide-react';
 import { Article } from '@/types';
 
@@ -14,9 +14,45 @@ export default function KnowledgeBase({ onBack, onArticleSelect }: KnowledgeBase
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Initialize with empty array since we no longer have articles.json
-  const articles: Article[] = [];
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load articles from database
+  useEffect(() => {
+    const loadArticles = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/admin/knowledge-base');
+        if (!response.ok) {
+          throw new Error('Failed to load knowledge base');
+        }
+        const data = await response.json();
+        
+        // Convert knowledge base files to Article format
+        const articleData: Article[] = data.files.map((file: any) => ({
+          id: file.id,
+          title: file.title || file.filename,
+          summary: file.metadata?.summary || 'No summary available',
+          content: file.content || '',
+          category: file.metadata?.category || 'General',
+          tags: file.metadata?.tags || [],
+          author: file.metadata?.author || 'Sanjay Bhargava',
+          readTime: file.metadata?.readTime || '5 min read',
+          publishDate: file.uploadedAt || new Date().toISOString(),
+          lastUpdated: file.updatedAt || file.uploadedAt || new Date().toISOString()
+        }));
+        
+        setArticles(articleData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load articles');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadArticles();
+  }, []);
   
   // Get unique categories
   const categories = useMemo(() => {
@@ -210,7 +246,24 @@ export default function KnowledgeBase({ onBack, onArticleSelect }: KnowledgeBase
       </header>
 
       <div className="max-w-6xl mx-auto p-6">
-        {filteredArticles.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading knowledge base...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <BookOpen className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading articles</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        ) : filteredArticles.length === 0 ? (
           <div className="text-center py-12">
             <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No articles found</h3>
