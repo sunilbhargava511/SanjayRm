@@ -430,6 +430,33 @@ export async function POST(request: NextRequest) {
           speed: 0.85
         };
         
+        // Determine if this is a chunk delivery or Q&A response
+        let isChunkDelivery = false;
+        let isInterruptible = true; // Default: Q&A sessions are interruptible
+        
+        if (useStructuredMode && educationalSession && educationalSessionId) {
+          // Check if this is delivering a new chunk (contains structured content patterns)
+          const hasChunkPattern = responseContent.includes('---') || // Chunk separator
+                                 responseContent.match(/\n\n[A-Z]/) || // New section pattern
+                                 responseContent.length > 300; // Long educational content
+          
+          // Check if this is a first delivery or advancement to new chunk
+          const sessionResponses = await educationalSessionService.getSessionResponses(educationalSessionId);
+          const currentChunk = await educationalSessionService.getCurrentChunk(educationalSessionId);
+          const currentChunkResponses = currentChunk ? sessionResponses.filter(r => r.chunkId === currentChunk.id) : [];
+          
+          // This is chunk delivery if it's the first interaction for this chunk or has chunk patterns
+          isChunkDelivery = currentChunkResponses.length === 0 || hasChunkPattern;
+          
+          if (isChunkDelivery) {
+            console.log('🔒 [INTERRUPTION-CONTROL] Chunk delivery detected - making uninterruptible');
+            isInterruptible = false; // Chunks are uninterruptible
+          } else {
+            console.log('💬 [INTERRUPTION-CONTROL] Q&A response detected - keeping interruptible');
+            isInterruptible = true; // Q&A sessions remain interruptible
+          }
+        }
+        
         // Adjust voice based on response sentiment (FTherapy pattern)
         if (responseContent.includes('!') || responseContent.includes('excited') || responseContent.includes('great')) {
           voiceSettings.stability = 0.4;
@@ -479,7 +506,13 @@ export async function POST(request: NextRequest) {
                 logprobs: null,
                 finish_reason: null
               }
-            ]
+            ],
+            // Add interruption control metadata for ElevenLabs
+            metadata: {
+              interruptible: isInterruptible,
+              isChunkDelivery: isChunkDelivery,
+              voiceSettings: voiceSettings
+            }
           };
           
           const finalChunk = {
@@ -495,7 +528,13 @@ export async function POST(request: NextRequest) {
                 logprobs: null,
                 finish_reason: 'stop'
               }
-            ]
+            ],
+            // Add interruption control metadata for ElevenLabs
+            metadata: {
+              interruptible: isInterruptible,
+              isChunkDelivery: isChunkDelivery,
+              voiceSettings: voiceSettings
+            }
           };
           
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(roleChunk)}\n\n`));

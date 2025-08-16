@@ -327,7 +327,9 @@ export default function ConversationalAI({
         connectionType: 'webrtc' as const,
         overrides: {
           agent: {
-            firstMessage: welcomeMessage || "Hello! I'm Sanjay, your AI financial advisor. How can I help you today?"
+            firstMessage: welcomeMessage || "Hello! I'm Sanjay, your AI financial advisor. How can I help you today?",
+            // Make educational chunks uninterruptible
+            interruptible: false
           },
           tts: {
             voiceId: 'MXGyTMlsvQgQ4BL0emIa',
