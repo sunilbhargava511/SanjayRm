@@ -345,6 +345,46 @@ Now deliver this content in your warm, conversational style and end with the que
           sessionState,
         });
 
+      case 'update_conversation_id':
+        // Update session to use ElevenLabs conversation_id and mark first chunk as sent
+        const { tempSessionId, conversationId } = data;
+        if (!tempSessionId || !conversationId) {
+          return NextResponse.json(
+            { success: false, error: 'tempSessionId and conversationId are required' },
+            { status: 400 }
+          );
+        }
+
+        // Get the temporary session
+        const tempSession = await educationalSessionService.getSession(tempSessionId);
+        if (!tempSession) {
+          return NextResponse.json(
+            { success: false, error: 'Temporary session not found' },
+            { status: 404 }
+          );
+        }
+
+        // Create new session with ElevenLabs conversation_id
+        const updatedSession = await educationalSessionService.createNewSession(
+          tempSession.personalizationEnabled,
+          conversationId, // Use conversation_id as session ID
+          tempSession.conversationType,
+          tempSession.conversationAware,
+          conversationId // Store conversation_id
+        );
+
+        // Mark first chunk as sent (delivered via ElevenLabs firstMessage)
+        await educationalSessionService.markChunkAsSent(conversationId, 1);
+
+        // Delete temporary session (optional cleanup)
+        // await educationalSessionService.deleteSession(tempSessionId);
+
+        return NextResponse.json({
+          success: true,
+          session: updatedSession,
+          message: 'Session updated with conversation_id and first chunk marked as sent'
+        });
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown action' },

@@ -136,31 +136,13 @@ export async function POST(request: NextRequest) {
           found: conversationId
         });
 
-        // Resolve session using FTherapy pattern (CRITICAL for conversation context)
+        // Try to resolve session using FTherapy pattern (optional for single conversation system)
         const sessionInfo = await resolveSessionId();
-        if (!sessionInfo) {
-          console.error('❌ No session found - webhook cannot be processed');
-          // Return a generic response if no session found
-          const fallbackResponse = "I'm having trouble connecting to your session. Please try refreshing the page and starting a new conversation.";
-          
-          const fallbackChunk = {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: body.model || 'claude-3-5-sonnet-20241022',
-            choices: [{
-              index: 0,
-              delta: { role: 'assistant', content: fallbackResponse },
-              finish_reason: 'stop'
-            }]
-          };
-          
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(fallbackChunk)}\\n\\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\\n\\n'));
-          return;
+        if (sessionInfo) {
+          console.log(`✅ Session resolved: ${sessionInfo.sessionId} (${sessionInfo.therapistId})`);
+        } else {
+          console.log('⚠️ [SESSION-DEBUG] Session resolution failed, will try direct conversation_id lookup');
         }
-
-        console.log(`✅ Session resolved: ${sessionInfo.sessionId} (${sessionInfo.therapistId})`);
         
         // Check for educational session using conversation_id or session metadata
         let educationalSession = null;
@@ -218,6 +200,11 @@ export async function POST(request: NextRequest) {
         
         if (!educationalSession) {
           console.log('❌ [SESSION-DEBUG] No educational session available - will use open-ended mode');
+          
+          // If we have conversation_id but no session, this might be a timing issue
+          if (conversationId) {
+            console.log('🔧 [SESSION-DEBUG] Have conversation_id but no session - might be during transition period');
+          }
         }
         
         console.log('🔍 [SESSION-DEBUG] Structured mode enabled:', useStructuredMode);

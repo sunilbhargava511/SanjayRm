@@ -29,9 +29,10 @@ export class EducationalSessionService {
     personalizationEnabled?: boolean, 
     customSessionId?: string,
     conversationType: 'structured' | 'open-ended' = 'structured',
-    conversationAware?: boolean
+    conversationAware?: boolean,
+    conversationId?: string
   ): Promise<EducationalSession> {
-    const sessionId = customSessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = customSessionId || conversationId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // Get admin defaults if not explicitly provided
     const defaults = await this.getAdminDefaults();
@@ -40,9 +41,11 @@ export class EducationalSessionService {
     
     const newSession = await db.insert(schema.conversations).values({
       id: sessionId,
+      conversationId: conversationId || sessionId, // Store ElevenLabs conversation_id
       conversationType,
       currentChunkIndex: 0,
       chunkLastDelivered: 0,
+      lastChunkSent: 0, // Track which chunk was last sent to user
       completed: false,
       personalizationEnabled: finalPersonalizationEnabled,
       conversationAware: finalConversationAware,
@@ -143,6 +146,14 @@ export class EducationalSessionService {
   async markChunkAsDelivered(sessionId: string, chunkIndex: number): Promise<void> {
     await this.updateSession(sessionId, { 
       chunkLastDelivered: chunkIndex,
+      updatedAt: new Date()
+    });
+  }
+
+  // Mark chunk as sent to user (for first chunk via ElevenLabs firstMessage)
+  async markChunkAsSent(sessionId: string, chunkIndex: number): Promise<void> {
+    await this.updateSession(sessionId, { 
+      lastChunkSent: chunkIndex,
       updatedAt: new Date()
     });
   }
@@ -322,10 +333,12 @@ Transition:`;
   private convertDatabaseSession(dbSession: any): EducationalSession {
     return {
       id: dbSession.id,
+      conversationId: dbSession.conversationId,
       conversationType: dbSession.conversationType || 'structured',
       userId: dbSession.userId,
       currentChunkIndex: dbSession.currentChunkIndex,
       chunkLastDelivered: dbSession.chunkLastDelivered || 0,
+      lastChunkSent: dbSession.lastChunkSent || 0,
       completed: Boolean(dbSession.completed),
       personalizationEnabled: Boolean(dbSession.personalizationEnabled),
       conversationAware: dbSession.conversationAware !== null ? Boolean(dbSession.conversationAware) : undefined,

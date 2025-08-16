@@ -57,26 +57,30 @@ export default function ConversationalAI({
       if (details.conversationId) {
         conversationIdRef.current = details.conversationId;
         
-        // Create educational session using conversation_id as the key
-        const educationalSessionId = localStorage.getItem('currentEducationalSessionId');
-        if (educationalSessionId) {
-          console.log('🔍 [FRONTEND-DEBUG] Creating educational session with conversation_id:', details.conversationId);
+        // Update educational session to use ElevenLabs conversation_id
+        const tempEducationalSessionId = localStorage.getItem('currentEducationalSessionId');
+        if (tempEducationalSessionId) {
+          console.log('🔍 [FRONTEND-DEBUG] Updating educational session to use conversation_id:', details.conversationId);
           
+          // Update session to use ElevenLabs conversation_id and mark first chunk as sent
           fetch('/api/educational-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              action: 'create',
-              sessionId: details.conversationId,
+              action: 'update_conversation_id',
+              tempSessionId: tempEducationalSessionId,
+              conversationId: details.conversationId,
             })
           }).then(response => {
             if (response.ok) {
-              console.log('🔍 [FRONTEND-DEBUG] Educational session created successfully');
+              console.log('🔍 [FRONTEND-DEBUG] Educational session updated with conversation_id successfully');
+              // Update localStorage to use the conversation_id
+              localStorage.setItem('currentEducationalSessionId', details.conversationId);
             } else {
-              console.error('🔍 [FRONTEND-DEBUG] Failed to create educational session');
+              console.error('🔍 [FRONTEND-DEBUG] Failed to update educational session');
             }
           }).catch(error => {
-            console.error('[Real FTherapy] Error creating educational session:', error);
+            console.error('[Real FTherapy] Error updating educational session:', error);
           });
         }
       }
@@ -151,16 +155,19 @@ export default function ConversationalAI({
     }
   }, [updateStatus]);
 
-  // Initialize session
+  // Initialize session - always create new and end any existing
   const initializeSession = useCallback(() => {
-    let session = EnhancedSessionStorage.getCurrentSession();
-    
-    if (!session || !session.isActive) {
-      session = EnhancedSessionStorage.createNewSession(`Voice Session ${new Date().toLocaleTimeString()}`);
-      console.log(`[Real FTherapy] Created new session: ${session.id}`);
-    } else {
-      console.log(`[Real FTherapy] Restored existing session: ${session.id}`);
+    // First, end any existing active session
+    const existingSession = EnhancedSessionStorage.getCurrentSession();
+    if (existingSession && existingSession.isActive) {
+      existingSession.isActive = false;
+      EnhancedSessionStorage.saveSession(existingSession);
+      console.log(`[Real FTherapy] Ended existing session: ${existingSession.id}`);
     }
+    
+    // Always create a fresh new session
+    const session = EnhancedSessionStorage.createNewSession(`Voice Session ${new Date().toLocaleTimeString()}`);
+    console.log(`[Real FTherapy] Created fresh session: ${session.id}`);
     
     setCurrentSession(session);
     return session;

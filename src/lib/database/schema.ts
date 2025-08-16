@@ -48,11 +48,13 @@ export const knowledgeBaseFiles = sqliteTable('knowledge_base_files', {
 
 // Conversations (renamed from educational_sessions for clarity)
 export const conversations = sqliteTable('conversations', {
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey(), // Now uses ElevenLabs conversation_id directly
+  conversationId: text('conversation_id').unique(), // Store ElevenLabs conversation_id for reference
   conversationType: text('conversation_type').notNull().default('structured'), // 'structured' | 'open-ended'
   userId: text('user_id'), // Optional user identification
   currentChunkIndex: integer('current_chunk_index').default(0), // Which chunk to deliver next (for structured)
   chunkLastDelivered: integer('chunk_last_delivered').default(0), // Last chunk delivered (for structured)
+  lastChunkSent: integer('last_chunk_sent').default(0), // Track which chunk was last sent to user
   completed: integer('completed', { mode: 'boolean' }).default(false),
   personalizationEnabled: integer('personalization_enabled', { mode: 'boolean' }).default(false),
   conversationAware: integer('conversation_aware', { mode: 'boolean' }), // NULL = use admin default, true/false = override
