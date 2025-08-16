@@ -109,8 +109,9 @@ export interface AdminSettings {
 
 export interface SystemPrompt {
   id: string;
-  type: 'content' | 'qa' | 'report';
+  type: 'qa' | 'lesson_qa' | 'report'; // Simplified to two main types + legacy report
   content: string;
+  lessonId?: string; // For lesson-specific prompts
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -180,4 +181,47 @@ export interface AudioPlaybackState {
   currentText: string;
   canInterrupt: boolean;
   error?: string;
+}
+
+// Lesson System Types
+export interface Lesson {
+  id: string;
+  title: string;
+  videoUrl: string;
+  videoSummary: string;
+  question: string; // FirstMessage for Q&A
+  orderIndex: number;
+  prerequisites: string[]; // Lesson IDs that must be completed first
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserSession {
+  id: string;
+  userId?: string;
+  completedLessons: string[]; // Array of completed lesson IDs
+  currentLessonId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LessonConversation {
+  id: string;
+  sessionId: string;
+  lessonId: string;
+  conversationId?: string; // ElevenLabs conversation ID
+  completed: boolean;
+  messagesCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LessonProgress {
+  sessionId: string;
+  completedLessons: Lesson[];
+  currentLesson?: Lesson;
+  nextRecommendedLesson?: Lesson;
+  totalLessons: number;
+  percentComplete: number;
 }

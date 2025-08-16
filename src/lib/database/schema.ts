@@ -1,7 +1,43 @@
 import { sqliteTable, text, integer, blob, real } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
-// Content chunks for educational delivery
+// Lessons for educational delivery (replacing chunks)
+export const lessons = sqliteTable('lessons', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  videoUrl: text('video_url').notNull(), // YouTube URL
+  videoSummary: text('video_summary').notNull(), // Context for LLM during Q&A
+  question: text('question').notNull(), // FirstMessage for Q&A conversation
+  orderIndex: integer('order_index').notNull(),
+  prerequisites: text('prerequisites'), // JSON array of lesson IDs
+  active: integer('active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// User sessions tracking progress across multiple lessons
+export const userSessions = sqliteTable('user_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id'), // Optional, for future user accounts
+  completedLessons: text('completed_lessons'), // JSON array of completed lesson IDs
+  currentLessonId: text('current_lesson_id'), // Currently active lesson
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Individual Q&A conversations for each lesson
+export const lessonConversations = sqliteTable('lesson_conversations', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(), // References userSessions
+  lessonId: text('lesson_id').notNull(), // References lessons
+  conversationId: text('conversation_id'), // ElevenLabs conversation ID
+  completed: integer('completed', { mode: 'boolean' }).default(false),
+  messagesCount: integer('messages_count').default(0),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Content chunks for educational delivery (keeping for backward compatibility during migration)
 export const contentChunks = sqliteTable('content_chunks', {
   id: text('id').primaryKey(),
   orderIndex: integer('order_index').notNull(),
@@ -26,11 +62,12 @@ export const adminSettings = sqliteTable('admin_settings', {
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
 
-// System prompts for different purposes
+// System prompts for different purposes (simplified to two types)
 export const systemPrompts = sqliteTable('system_prompts', {
   id: text('id').primaryKey(),
-  type: text('type').notNull(), // 'content' | 'qa' | 'report'
+  type: text('type').notNull(), // 'qa' (general) | 'lesson_qa' (lesson-specific) | 'report' (legacy)
   content: text('content').notNull(),
+  lessonId: text('lesson_id'), // For lesson-specific prompts (lesson_qa type)
   active: integer('active', { mode: 'boolean' }).default(true),
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
@@ -85,6 +122,15 @@ export const sessionReports = sqliteTable('session_reports', {
 });
 
 // Export types for TypeScript
+export type Lesson = typeof lessons.$inferSelect;
+export type NewLesson = typeof lessons.$inferInsert;
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
+
+export type LessonConversation = typeof lessonConversations.$inferSelect;
+export type NewLessonConversation = typeof lessonConversations.$inferInsert;
+
 export type ContentChunk = typeof contentChunks.$inferSelect;
 export type NewContentChunk = typeof contentChunks.$inferInsert;
 
