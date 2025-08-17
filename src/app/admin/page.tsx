@@ -19,13 +19,14 @@ import {
 } from 'lucide-react';
 import { 
   ContentChunk, 
+  Lesson,
   AdminSettings, 
   SystemPrompt, 
   KnowledgeBaseFile,
   SessionReport 
 } from '@/types';
 
-type AdminTab = 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports';
+type AdminTab = 'lessons' | 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports';
 type SettingsTab = 'general' | 'voice' | 'ui';
 
 // Component for async summary generation
@@ -72,8 +73,9 @@ const ChunkSummary: React.FC<{
 };
 
 export default function AdminPanel() {
-  const [currentTab, setCurrentTab] = useState<AdminTab>('chunks');
+  const [currentTab, setCurrentTab] = useState<AdminTab>('lessons');
   const [currentSettingsTab, setCurrentSettingsTab] = useState<SettingsTab>('general');
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [chunks, setChunks] = useState<ContentChunk[]>([]);
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
@@ -82,7 +84,10 @@ export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedChunk, setDraggedChunk] = useState<string | null>(null);
+  const [draggedLesson, setDraggedLesson] = useState<string | null>(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [showLessonForm, setShowLessonForm] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [showUploadKnowledgeForm, setShowUploadKnowledgeForm] = useState(false);
   const [hasBaseTemplate, setHasBaseTemplate] = useState(false);
@@ -124,7 +129,8 @@ export default function AdminPanel() {
     setError(null);
     
     try {
-      const [chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes] = await Promise.all([
+      const [lessonsRes, chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes] = await Promise.all([
+        fetch('/api/lessons'),
         fetch('/api/admin/chunks'),
         fetch('/api/admin/settings'),
         fetch('/api/admin/prompts'),
@@ -132,6 +138,11 @@ export default function AdminPanel() {
         fetch('/api/reports'),
         fetch('/api/admin/base-template')
       ]);
+
+      if (lessonsRes.ok) {
+        const lessonsData = await lessonsRes.json();
+        setLessons(lessonsData.lessons || []);
+      }
 
       if (chunksRes.ok) {
         const chunksData = await chunksRes.json();
@@ -467,6 +478,146 @@ export default function AdminPanel() {
 
   // Store generated summaries to avoid re-generating
   const [chunkSummaries, setChunkSummaries] = useState<Record<string, string>>({});
+
+  // Lesson Management Functions
+  const createLesson = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const lessonData = {
+      title: formData.get('title') as string,
+      videoUrl: formData.get('videoUrl') as string,
+      videoSummary: formData.get('videoSummary') as string,
+      question: formData.get('question') as string,
+      prerequisites: JSON.parse((formData.get('prerequisites') as string) || '[]'),
+    };
+    
+    try {
+      const response = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          ...lessonData
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        (e.target as HTMLFormElement).reset();
+        setShowLessonForm(false);
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to create lesson');
+      }
+    } catch (err) {
+      setError('Failed to create lesson');
+    }
+  };
+
+  const updateLesson = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingLesson) return;
+
+    const formData = new FormData(e.currentTarget);
+    
+    const updates = {
+      title: formData.get('title') as string,
+      videoUrl: formData.get('videoUrl') as string,
+      videoSummary: formData.get('videoSummary') as string,
+      question: formData.get('question') as string,
+      prerequisites: JSON.parse((formData.get('prerequisites') as string) || '[]'),
+    };
+    
+    try {
+      const response = await fetch('/api/lessons', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          lessonId: editingLesson.id,
+          ...updates
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+        setEditingLesson(null);
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Failed to update lesson');
+      }
+    } catch (err) {
+      setError('Failed to update lesson');
+    }
+  };
+
+  const deleteLesson = async (lessonId: string) => {
+    if (!confirm('Are you sure you want to delete this lesson?')) return;
+
+    try {
+      const response = await fetch(`/api/lessons?id=${lessonId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        setError('Failed to delete lesson');
+      }
+    } catch (err) {
+      setError('Failed to delete lesson');
+    }
+  };
+
+  // Lesson drag and drop handlers
+  const handleLessonDragStart = (e: React.DragEvent, lessonId: string) => {
+    setDraggedLesson(lessonId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleLessonDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (!draggedLesson) return;
+    
+    const draggedIndex = lessons.findIndex(l => l.id === draggedLesson);
+    if (draggedIndex === dropIndex) return;
+
+    // Reorder lessons array
+    const newLessons = [...lessons];
+    const draggedItem = newLessons.splice(draggedIndex, 1)[0];
+    newLessons.splice(dropIndex, 0, draggedItem);
+
+    // Update order indices
+    const reorderedIds = newLessons.map(l => l.id);
+    
+    try {
+      const response = await fetch('/api/lessons', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reorder',
+          lessonIds: reorderedIds,
+        }),
+      });
+
+      if (response.ok) {
+        await loadData();
+      } else {
+        setError('Failed to reorder lessons');
+      }
+    } catch (err) {
+      setError('Failed to reorder lessons');
+    }
+    
+    setDraggedLesson(null);
+  };
+
+  const validateYouTubeUrl = (url: string): boolean => {
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/)|youtu\.be\/)[\w-]+/;
+    return youtubeRegex.test(url);
+  };
 
   // Generate a real 3-line summary of the chunk content using AI
   const generateSummary = useCallback(async (chunkId: string, content: string): Promise<string> => {
@@ -950,7 +1101,8 @@ export default function AdminPanel() {
             </div>
             <nav className="p-4 space-y-2">
               {[
-                { id: 'chunks', label: 'Content Chunks', icon: FileText, count: chunks.length },
+                { id: 'lessons', label: 'Lessons', icon: FileText, count: lessons.length },
+                { id: 'chunks', label: 'Content Chunks (Legacy)', icon: FileText, count: chunks.length },
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
                 { id: 'reports', label: 'Report Template', icon: BarChart3, count: hasBaseTemplate ? 1 : 0 },
@@ -981,6 +1133,245 @@ export default function AdminPanel() {
 
           {/* Main Content */}
           <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200">
+          {currentTab === 'lessons' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Lessons</h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    {lessons.length} lessons
+                  </span>
+                  <button
+                    onClick={() => setShowLessonForm(!showLessonForm)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {showLessonForm ? 'Cancel' : 'Create New Lesson'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Create/Edit Lesson Form */}
+              {(showLessonForm || editingLesson) && (
+                <form onSubmit={editingLesson ? updateLesson : createLesson} className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-medium mb-4">
+                    {editingLesson ? 'Edit Lesson' : 'Create New Lesson'}
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Lesson Title
+                      </label>
+                      <input
+                        type="text"
+                        name="title"
+                        required
+                        defaultValue={editingLesson?.title || ''}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., Introduction to Retirement Planning"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        YouTube Video URL
+                      </label>
+                      <input
+                        type="url"
+                        name="videoUrl"
+                        required
+                        defaultValue={editingLesson?.videoUrl || ''}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        YouTube video URL for this lesson
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Video Summary (for LLM Context)
+                      </label>
+                      <textarea
+                        name="videoSummary"
+                        required
+                        rows={4}
+                        defaultValue={editingLesson?.videoSummary || ''}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Summarize the key concepts covered in this video for the AI to use during Q&A..."
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        This summary helps the AI provide contextual responses during Q&A
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Q&A Opening Question
+                      </label>
+                      <textarea
+                        name="question"
+                        required
+                        rows={3}
+                        defaultValue={editingLesson?.question || ''}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="What questions or thoughts do you have about retirement planning after watching this lesson?"
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        This question starts the Q&A conversation after the video
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Prerequisites (JSON Array)
+                      </label>
+                      <textarea
+                        name="prerequisites"
+                        rows={2}
+                        defaultValue={JSON.stringify(editingLesson?.prerequisites || [])}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder='["lesson_id_1", "lesson_id_2"]'
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Lesson IDs that must be completed before this lesson (JSON format)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      type="submit"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      <Save className="w-4 h-4" />
+                      {editingLesson ? 'Update Lesson' : 'Create Lesson'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLessonForm(false);
+                        setEditingLesson(null);
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Lessons List with Drag & Drop */}
+              <div className="space-y-4">
+                {lessons.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg mb-2">No lessons created yet</p>
+                    <p className="text-sm">Create your first lesson above to get started with the video-based learning system.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {lessons.map((lesson, index) => (
+                      <div
+                        key={lesson.id}
+                        draggable
+                        onDragStart={(e) => handleLessonDragStart(e, lesson.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleLessonDrop(e, index)}
+                        className={`border-2 rounded-lg p-4 transition-all cursor-move ${
+                          draggedLesson === lesson.id
+                            ? 'border-blue-400 bg-blue-50 shadow-lg scale-105'
+                            : 'border-gray-200 bg-white hover:shadow-md'
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Drag Handle */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <GripVertical className="w-5 h-5 text-gray-400" />
+                            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              #{index + 1}
+                            </span>
+                          </div>
+                          
+                          {/* Content */}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h3 className="text-lg font-semibold text-gray-900">
+                                {lesson.title}
+                              </h3>
+                              <a
+                                href={lesson.videoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                View Video →
+                              </a>
+                            </div>
+                            
+                            <div className="grid md:grid-cols-2 gap-4 mb-3">
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Video URL:</span> {lesson.videoUrl.substring(0, 50)}...
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Created:</span> {new Date(lesson.createdAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            
+                            {/* Video Summary */}
+                            <div className="bg-green-50 rounded-md p-3 mb-3">
+                              <p className="text-sm font-medium text-green-700 mb-1">Video Summary:</p>
+                              <p className="text-green-900 text-sm leading-relaxed">
+                                {lesson.videoSummary.length > 200 
+                                  ? lesson.videoSummary.substring(0, 200) + '...'
+                                  : lesson.videoSummary
+                                }
+                              </p>
+                            </div>
+                            
+                            {/* Q&A Question */}
+                            <div className="bg-gray-50 rounded-md p-3 mb-3">
+                              <p className="text-sm font-medium text-gray-700 mb-1">Q&A Opening Question:</p>
+                              <p className="text-gray-800">{lesson.question}</p>
+                            </div>
+
+                            {/* Prerequisites */}
+                            {lesson.prerequisites.length > 0 && (
+                              <div className="bg-amber-50 rounded-md p-3">
+                                <p className="text-sm font-medium text-amber-700 mb-1">Prerequisites:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {lesson.prerequisites.map((prereqId, idx) => (
+                                    <span key={idx} className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs">
+                                      {prereqId}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setEditingLesson(lesson)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                              title="Edit lesson"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteLesson(lesson.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Delete lesson"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {currentTab === 'chunks' && (
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
