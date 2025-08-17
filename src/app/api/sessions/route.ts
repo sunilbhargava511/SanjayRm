@@ -85,13 +85,19 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'start': {
         const { userId } = data;
-        const session = await sessionService.startSession(userId);
         
-        return NextResponse.json({ 
-          success: true, 
-          session,
-          message: 'Session started successfully' 
-        });
+        try {
+          const session = await sessionService.startSession(userId);
+          
+          return NextResponse.json({ 
+            success: true, 
+            session,
+            message: 'Session started successfully' 
+          });
+        } catch (error) {
+          console.error('Failed to start session:', error);
+          throw error; // Re-throw to be caught by outer try-catch
+        }
       }
 
       case 'start_lesson_conversation': {

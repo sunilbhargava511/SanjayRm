@@ -57,6 +57,89 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Create new unified session tables
+    console.log('Creating unified session system tables...');
+    
+    // Check if conversation_sessions table exists
+    const sessionsTableExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='conversation_sessions'
+    `).all();
+    
+    if (sessionsTableExists.length === 0) {
+      console.log('Creating conversation_sessions table...');
+      sqlite.exec(`
+        CREATE TABLE conversation_sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          session_type TEXT NOT NULL,
+          lesson_phase TEXT,
+          current_lesson_id TEXT,
+          elevenlabs_conversation_id TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          started_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+          ended_at TEXT,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+          updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created conversation_sessions table');
+    } else {
+      console.log('✅ conversation_sessions table already exists');
+    }
+    
+    // Check if conversation_messages table exists
+    const messagesTableExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='conversation_messages'
+    `).all();
+    
+    if (messagesTableExists.length === 0) {
+      console.log('Creating conversation_messages table...');
+      sqlite.exec(`
+        CREATE TABLE conversation_messages (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          message_type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          speaker TEXT NOT NULL,
+          elevenlabs_message_id TEXT,
+          lesson_context_id TEXT,
+          timestamp TEXT DEFAULT (CURRENT_TIMESTAMP),
+          metadata TEXT,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created conversation_messages table');
+    } else {
+      console.log('✅ conversation_messages table already exists');
+    }
+    
+    // Check if opening_messages table exists
+    const openingTableExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='opening_messages'
+    `).all();
+    
+    if (openingTableExists.length === 0) {
+      console.log('Creating opening_messages table...');
+      sqlite.exec(`
+        CREATE TABLE opening_messages (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          lesson_id TEXT,
+          message_content TEXT NOT NULL,
+          voice_settings TEXT,
+          active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+          updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created opening_messages table');
+    } else {
+      console.log('✅ opening_messages table already exists');
+    }
+    
     console.log('Database migration completed successfully');
     
     return NextResponse.json({

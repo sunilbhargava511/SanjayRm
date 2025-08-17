@@ -15,7 +15,8 @@ import {
   Edit3,
   Download,
   BarChart3,
-  ArrowLeft
+  ArrowLeft,
+  MessageSquare
 } from 'lucide-react';
 import { 
   ContentChunk, 
@@ -26,7 +27,7 @@ import {
   SessionReport 
 } from '@/types';
 
-type AdminTab = 'lessons' | 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports';
+type AdminTab = 'lessons' | 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages';
 type SettingsTab = 'general' | 'voice' | 'ui';
 
 // Component for async summary generation
@@ -81,6 +82,7 @@ export default function AdminPanel() {
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBaseFile[]>([]);
   const [reports, setReports] = useState<SessionReport[]>([]);
+  const [openingMessages, setOpeningMessages] = useState<any>({ general: null, lessonMessages: [], lessons: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedChunk, setDraggedChunk] = useState<string | null>(null);
@@ -129,14 +131,15 @@ export default function AdminPanel() {
     setError(null);
     
     try {
-      const [lessonsRes, chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes] = await Promise.all([
+      const [lessonsRes, chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes, openingMessagesRes] = await Promise.all([
         fetch('/api/lessons'),
         fetch('/api/admin/chunks'),
         fetch('/api/admin/settings'),
         fetch('/api/admin/prompts'),
         fetch('/api/admin/knowledge-base'),
         fetch('/api/reports'),
-        fetch('/api/admin/base-template')
+        fetch('/api/admin/base-template'),
+        fetch('/api/admin/opening-messages')
       ]);
 
       if (lessonsRes.ok) {
@@ -172,6 +175,11 @@ export default function AdminPanel() {
       if (templateRes.ok) {
         const templateData = await templateRes.json();
         setHasBaseTemplate(templateData.hasTemplate || false);
+      }
+
+      if (openingMessagesRes.ok) {
+        const openingMessagesData = await openingMessagesRes.json();
+        setOpeningMessages(openingMessagesData);
       }
     } catch (err) {
       setError('Failed to load admin data');
@@ -1200,6 +1208,7 @@ The lesson context will be automatically added to this prompt when used.`;
                 { id: 'chunks', label: 'Content Chunks (Legacy)', icon: FileText, count: chunks.length },
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
+                { id: 'opening-messages', label: 'Opening Messages', icon: MessageSquare },
                 { id: 'reports', label: 'Report Template', icon: BarChart3, count: hasBaseTemplate ? 1 : 0 },
                 { id: 'settings', label: 'Settings', icon: Settings },
               ].map(({ id, label, icon: Icon, count }) => (
@@ -2637,6 +2646,293 @@ The lesson context will be automatically added to this prompt when used.`;
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {currentTab === 'opening-messages' && (
+            <div className="p-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Opening Messages</h2>
+                <p className="text-gray-600">Configure TTS messages spoken at the start of conversations</p>
+              </div>
+
+              {/* General Opening Message */}
+              <div className="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="text-lg font-semibold text-blue-900 mb-4">General Opening Message</h3>
+                <p className="text-sm text-blue-700 mb-4">
+                  Spoken when users start an open-ended conversation (not lesson-based)
+                </p>
+                
+                {openingMessages.general ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-white rounded border">
+                      <div className="text-sm font-medium text-gray-700 mb-2">Current Message:</div>
+                      <div className="text-gray-900">{openingMessages.general.messageContent}</div>
+                    </div>
+                    
+                    <form 
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const messageContent = formData.get('generalMessage') as string;
+                        
+                        try {
+                          const response = await fetch('/api/admin/opening-messages', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'set_general',
+                              messageContent,
+                              voiceSettings: {
+                                voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+                                speed: 0.85,
+                                stability: 0.6,
+                                similarityBoost: 0.8
+                              }
+                            })
+                          });
+                          
+                          if (response.ok) {
+                            await loadData();
+                            setError(null);
+                          } else {
+                            setError('Failed to update general opening message');
+                          }
+                        } catch (err) {
+                          setError('Failed to update general opening message');
+                        }
+                      }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Update Message:
+                        </label>
+                        <textarea
+                          name="generalMessage"
+                          defaultValue={openingMessages.general.messageContent}
+                          rows={3}
+                          className="w-full p-3 border border-gray-300 rounded-md"
+                          placeholder="Enter the opening message..."
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        <Save className="w-4 h-4" />
+                        Update General Message
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      const messageContent = formData.get('generalMessage') as string;
+                      
+                      try {
+                        const response = await fetch('/api/admin/opening-messages', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'set_general',
+                            messageContent,
+                            voiceSettings: {
+                              voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+                              speed: 0.85,
+                              stability: 0.6,
+                              similarityBoost: 0.8
+                            }
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          await loadData();
+                          setError(null);
+                        } else {
+                          setError('Failed to create general opening message');
+                        }
+                      } catch (err) {
+                        setError('Failed to create general opening message');
+                      }
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Create General Opening Message:
+                      </label>
+                      <textarea
+                        name="generalMessage"
+                        rows={3}
+                        className="w-full p-3 border border-gray-300 rounded-md"
+                        placeholder="Hello! I'm Sanjay, your AI financial advisor..."
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create General Message
+                    </button>
+                  </form>
+                )}
+              </div>
+
+              {/* Lesson-Specific Opening Messages */}
+              <div className="p-6 bg-green-50 rounded-lg border border-green-200">
+                <h3 className="text-lg font-semibold text-green-900 mb-4">Lesson Opening Messages</h3>
+                <p className="text-sm text-green-700 mb-6">
+                  Specific messages spoken when starting each lesson
+                </p>
+
+                <div className="space-y-4">
+                  {openingMessages.lessons && openingMessages.lessons.map((lesson: any) => {
+                    const lessonMessage = openingMessages.lessonMessages?.find((msg: any) => msg.lessonId === lesson.id);
+                    
+                    return (
+                      <div key={lesson.id} className="p-4 bg-white rounded border">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{lesson.title}</h4>
+                            <p className="text-sm text-gray-600">{lesson.videoSummary.substring(0, 100)}...</p>
+                          </div>
+                        </div>
+                        
+                        {lessonMessage ? (
+                          <div className="space-y-3">
+                            <div className="p-3 bg-gray-50 rounded">
+                              <div className="text-sm font-medium text-gray-700 mb-1">Current Message:</div>
+                              <div className="text-gray-900">{lessonMessage.messageContent}</div>
+                            </div>
+                            
+                            <form 
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const messageContent = formData.get('lessonMessage') as string;
+                                
+                                try {
+                                  const response = await fetch('/api/admin/opening-messages', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      action: 'set_lesson',
+                                      lessonId: lesson.id,
+                                      messageContent,
+                                      voiceSettings: {
+                                        voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+                                        speed: 0.85,
+                                        stability: 0.6,
+                                        similarityBoost: 0.8
+                                      }
+                                    })
+                                  });
+                                  
+                                  if (response.ok) {
+                                    await loadData();
+                                    setError(null);
+                                  } else {
+                                    setError('Failed to update lesson opening message');
+                                  }
+                                } catch (err) {
+                                  setError('Failed to update lesson opening message');
+                                }
+                              }}
+                              className="flex gap-2"
+                            >
+                              <textarea
+                                name="lessonMessage"
+                                defaultValue={lessonMessage.messageContent}
+                                rows={2}
+                                className="flex-1 p-2 border border-gray-300 rounded-md text-sm"
+                                placeholder="Enter lesson intro message..."
+                              />
+                              <button
+                                type="submit"
+                                className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                              >
+                                Update
+                              </button>
+                            </form>
+                          </div>
+                        ) : (
+                          <form 
+                            onSubmit={async (e) => {
+                              e.preventDefault();
+                              const formData = new FormData(e.currentTarget);
+                              const messageContent = formData.get('lessonMessage') as string;
+                              
+                              try {
+                                const response = await fetch('/api/admin/opening-messages', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    action: 'set_lesson',
+                                    lessonId: lesson.id,
+                                    messageContent,
+                                    voiceSettings: {
+                                      voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+                                      speed: 0.85,
+                                      stability: 0.6,
+                                      similarityBoost: 0.8
+                                    }
+                                  })
+                                });
+                                
+                                if (response.ok) {
+                                  await loadData();
+                                  setError(null);
+                                } else {
+                                  setError('Failed to create lesson opening message');
+                                }
+                              } catch (err) {
+                                setError('Failed to create lesson opening message');
+                              }
+                            }}
+                            className="flex gap-2"
+                          >
+                            <textarea
+                              name="lessonMessage"
+                              rows={2}
+                              className="flex-1 p-2 border border-gray-300 rounded-md text-sm"
+                              placeholder={`Welcome to the lesson on ${lesson.title}...`}
+                              required
+                            />
+                            <button
+                              type="submit"
+                              className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                            >
+                              Create
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(!openingMessages.lessons || openingMessages.lessons.length === 0) && (
+                  <div className="text-center py-8 text-gray-500">
+                    No lessons found. Create lessons first to add opening messages.
+                  </div>
+                )}
+              </div>
+
+              {/* Voice Settings Info */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Voice Settings</h4>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p><strong>Voice:</strong> Professional Male (MXGyTMlsvQgQ4BL0emIa)</p>
+                  <p><strong>Speed:</strong> 0.85x (slightly slower for clarity)</p>
+                  <p><strong>Stability:</strong> 0.6 (balanced)</p>
+                  <p><strong>Similarity Boost:</strong> 0.8 (high voice consistency)</p>
+                </div>
+              </div>
             </div>
           )}
 

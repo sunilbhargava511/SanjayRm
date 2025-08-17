@@ -1,0 +1,772 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Bot,
+  MessageSquare,
+  Play,
+  BookOpen,
+  ArrowRight,
+  Clock,
+  User,
+  Mic,
+  PhoneOff,
+  Pause,
+  RotateCcw,
+  Settings,
+  TrendingUp,
+  Shield,
+  Star,
+  Sparkles,
+  Heart,
+  Users,
+  Target,
+  ChevronRight,
+  PlayCircle,
+  PauseCircle,
+  Volume2,
+  Zap,
+  Award,
+  CheckCircle
+} from 'lucide-react';
+import ConversationPanel from './ConversationPanel';
+import VideoPlayer from './VideoPlayer';
+import ConversationalAI from './ConversationalAI-Enhanced';
+import { Lesson } from '@/types';
+
+interface SessionData {
+  id: string;
+  sessionType: 'open_ended' | 'lesson_based';
+  lessonPhase?: 'lesson_intro' | 'video_watching' | 'qa_conversation';
+  currentLessonId?: string;
+  status: 'active' | 'paused' | 'completed';
+  startedAt: string;
+}
+
+type InterfaceMode = 'session_select' | 'lesson_selection' | 'video' | 'conversation';
+type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'disconnected' | 'error';
+
+export default function EnhancedUnifiedSessionInterface() {
+  const [currentMode, setCurrentMode] = useState<InterfaceMode>('session_select');
+  const [currentSession, setCurrentSession] = useState<SessionData | null>(null);
+  const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
+  const [showConversationPanel, setShowConversationPanel] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isVideoCompleted, setIsVideoCompleted] = useState(false);
+  const [showGettingStarted, setShowGettingStarted] = useState(false);
+  const [userStats, setUserStats] = useState({ 
+    totalSessions: 12, 
+    completedLessons: 3, 
+    streak: 5 
+  });
+
+  // Load lessons on component mount
+  useEffect(() => {
+    loadLessons();
+    loadUserStats();
+  }, []);
+
+  const loadLessons = async () => {
+    try {
+      const response = await fetch('/api/lessons?activeOnly=true');
+      if (response.ok) {
+        const data = await response.json();
+        setLessons(data.lessons || []);
+      }
+    } catch (error) {
+      console.error('Failed to load lessons:', error);
+    }
+  };
+
+  const loadUserStats = async () => {
+    // Mock user stats - in real app, this would come from API
+    setUserStats({
+      totalSessions: Math.floor(Math.random() * 20) + 5,
+      completedLessons: Math.floor(Math.random() * 8) + 1,
+      streak: Math.floor(Math.random() * 10) + 1
+    });
+  };
+
+  // Start open-ended session
+  const handleStartOpenEndedSession = async () => {
+    try {
+      setIsInitializing(true);
+      setError(null);
+
+      const response = await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_session',
+          sessionType: 'open_ended'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create session');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Session creation failed');
+      }
+
+      setCurrentSession(data.session);
+
+      // Add general opening message
+      await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_opening_message',
+          sessionId: data.session.id,
+          messageType: 'general_opening'
+        })
+      });
+
+      // Switch to conversation mode
+      setCurrentMode('conversation');
+      setShowConversationPanel(true);
+
+    } catch (error) {
+      console.error('Error starting open-ended session:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start session');
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  // Start lesson-based session
+  const handleStartLessonSession = async (lesson: Lesson) => {
+    try {
+      setIsInitializing(true);
+      setError(null);
+
+      const response = await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_session',
+          sessionType: 'lesson_based',
+          currentLessonId: lesson.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create lesson session');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Lesson session creation failed');
+      }
+
+      setCurrentSession(data.session);
+      setCurrentLesson(lesson);
+
+      // Add lesson intro message
+      await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_opening_message',
+          sessionId: data.session.id,
+          messageType: 'lesson_intro',
+          lessonId: lesson.id
+        })
+      });
+
+      // Switch to video mode
+      setCurrentMode('video');
+      setIsVideoCompleted(false);
+      setShowConversationPanel(true);
+
+    } catch (error) {
+      console.error('Error starting lesson session:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start lesson');
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  // Handle video completion
+  const handleVideoEnd = async () => {
+    if (!currentSession || !currentLesson) return;
+
+    try {
+      setIsVideoCompleted(true);
+
+      const response = await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start_lesson_qa',
+          sessionId: currentSession.id,
+          lessonId: currentLesson.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start Q&A');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Q&A start failed');
+      }
+
+      setCurrentSession(prev => prev ? {
+        ...prev,
+        lessonPhase: 'qa_conversation'
+      } : null);
+
+      setCurrentMode('conversation');
+
+    } catch (error) {
+      console.error('Error starting Q&A:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start Q&A');
+    }
+  };
+
+  // Handle conversation status changes
+  const handleStatusChange = useCallback((status: ConnectionStatus) => {
+    setConnectionStatus(status);
+  }, []);
+
+  // Handle conversation errors
+  const handleConversationError = useCallback((errorMessage: string) => {
+    setError(errorMessage);
+    console.error('Conversation Error:', errorMessage);
+  }, []);
+
+  // End current session
+  const handleEndSession = async () => {
+    if (!currentSession) return;
+
+    try {
+      await fetch('/api/session-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'end_session',
+          sessionId: currentSession.id
+        })
+      });
+
+      // Reset state
+      setCurrentSession(null);
+      setCurrentLesson(null);
+      setCurrentMode('session_select');
+      setConnectionStatus('idle');
+      setShowConversationPanel(false);
+      setError(null);
+
+    } catch (error) {
+      console.error('Error ending session:', error);
+    }
+  };
+
+  // Feature highlights for session select
+  const features = [
+    {
+      icon: <MessageSquare className="w-5 h-5 text-blue-600" />,
+      title: "Personalized Guidance",
+      description: "Get tailored financial advice based on your unique situation"
+    },
+    {
+      icon: <BookOpen className="w-5 h-5 text-green-600" />,
+      title: "Interactive Lessons",
+      description: "Learn through engaging video content with Q&A sessions"
+    },
+    {
+      icon: <TrendingUp className="w-5 h-5 text-purple-600" />,
+      title: "Track Progress",
+      description: "Monitor your financial learning journey with real-time insights"
+    },
+    {
+      icon: <Shield className="w-5 h-5 text-indigo-600" />,
+      title: "Safe & Secure",
+      description: "Your financial conversations are private and confidential"
+    }
+  ];
+
+  // Getting started tips
+  const gettingStartedTips = [
+    "💡 Start with 'Building Your Emergency Fund' if you're new to financial planning",
+    "🎯 Use open conversations to ask specific questions about your situation",
+    "📚 Complete lessons in order for a structured learning path",
+    "🔄 Review previous sessions in your conversation history"
+  ];
+
+  // Render different modes
+  const renderModeContent = () => {
+    switch (currentMode) {
+      case 'session_select':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+            {/* Hero Section */}
+            <div className="relative overflow-hidden">
+              {/* Background decoration */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+              <div className="absolute top-0 left-0 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl -translate-x-32 -translate-y-32"></div>
+              <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl translate-x-32 translate-y-32"></div>
+              
+              <div className="relative max-w-7xl mx-auto px-6 py-16">
+                {/* Navigation */}
+                <nav className="flex items-center justify-between mb-16">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Bot className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-bold text-gray-900">Sanjay AI</h1>
+                      <p className="text-sm text-gray-600">Financial Advisor</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setShowGettingStarted(!showGettingStarted)}
+                      className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Getting Started
+                    </button>
+                    <a
+                      href="/admin"
+                      className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Admin
+                    </a>
+                  </div>
+                </nav>
+
+                {/* Main Hero Content */}
+                <div className="text-center mb-16">
+                  <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium text-gray-600 mb-6 border border-white/20">
+                    <Zap className="w-4 h-4 text-blue-600" />
+                    Powered by Advanced AI
+                  </div>
+                  
+                  <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+                    Your Personal
+                    <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent block">
+                      Financial Guide
+                    </span>
+                  </h1>
+                  
+                  <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
+                    Build a healthier relationship with money through personalized conversations and interactive lessons with Sanjay, your AI financial advisor.
+                  </p>
+
+                  {/* User Stats */}
+                  <div className="flex items-center justify-center gap-8 mb-12">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-900">{userStats.totalSessions}</div>
+                      <div className="text-sm text-gray-600">Sessions</div>
+                    </div>
+                    <div className="w-px h-8 bg-gray-300"></div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-900">{userStats.completedLessons}</div>
+                      <div className="text-sm text-gray-600">Lessons</div>
+                    </div>
+                    <div className="w-px h-8 bg-gray-300"></div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-gray-900 flex items-center gap-1 justify-center">
+                        {userStats.streak}
+                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                      </div>
+                      <div className="text-sm text-gray-600">Day Streak</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Action Cards */}
+                <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
+                  {/* Open-ended conversation */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-blue-200 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20">
+                      <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                        Start Conversation
+                      </h2>
+                      <p className="text-gray-600 mb-8 text-center leading-relaxed">
+                        Have a free-form discussion about your financial goals, questions, or concerns with personalized guidance.
+                      </p>
+                      
+                      <div className="space-y-3 mb-8">
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Personalized financial advice
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Voice or text conversations
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Complete conversation history
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleStartOpenEndedSession}
+                        disabled={isInitializing}
+                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 disabled:opacity-50 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                      >
+                        {isInitializing ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Starting...
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            Start Conversation
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Lesson-based learning */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-green-200 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20">
+                      <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <BookOpen className="w-8 h-8 text-green-600" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                        Guided Lessons
+                      </h2>
+                      <p className="text-gray-600 mb-8 text-center leading-relaxed">
+                        Learn specific financial topics through structured video lessons followed by interactive Q&A sessions.
+                      </p>
+                      
+                      <div className="space-y-3 mb-8">
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          {lessons.length} interactive lessons available
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Video + discussion format
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Track learning progress
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => setCurrentMode('lesson_selection')}
+                        className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-xl hover:from-green-700 hover:to-emerald-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          Browse Lessons
+                          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Features Grid */}
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+                  {features.map((feature, index) => (
+                    <div key={index} className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/80 transition-all duration-300">
+                      <div className="mb-4">{feature.icon}</div>
+                      <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
+                      <p className="text-sm text-gray-600">{feature.description}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Getting Started Panel */}
+                {showGettingStarted && (
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 max-w-2xl mx-auto">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Sparkles className="w-6 h-6 text-purple-600" />
+                      <h3 className="text-xl font-semibold text-gray-900">Getting Started Tips</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {gettingStartedTips.map((tip, index) => (
+                        <div key={index} className="flex items-start gap-3 text-gray-700">
+                          <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-sm font-medium flex-shrink-0 mt-0.5">
+                            {index + 1}
+                          </div>
+                          <p>{tip}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'lesson_selection':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 p-6">
+            <div className="max-w-6xl mx-auto">
+              <div className="mb-8">
+                <button
+                  onClick={() => setCurrentMode('session_select')}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+                >
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                  Back to Home
+                </button>
+                
+                <div className="text-center mb-8">
+                  <BookOpen className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                  <h2 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Learning Path</h2>
+                  <p className="text-gray-600 text-lg">
+                    Select a lesson to start your guided learning journey with interactive Q&A
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {lessons.map((lesson, index) => (
+                  <div 
+                    key={lesson.id}
+                    className="group bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-white/20 hover:border-green-300 relative overflow-hidden"
+                    onClick={() => handleStartLessonSession(lesson)}
+                  >
+                    {/* Background decoration */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-100 to-transparent rounded-full blur-2xl opacity-50"></div>
+                    
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
+                          <span className="text-2xl">💰</span>
+                        </div>
+                        <div className="text-sm text-green-600 font-medium bg-green-100 px-3 py-1 rounded-full">
+                          Lesson {index + 1}
+                        </div>
+                      </div>
+                      
+                      <h3 className="font-bold text-gray-900 mb-3 text-lg group-hover:text-green-700 transition-colors">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+                        {lesson.videoSummary.length > 120 
+                          ? lesson.videoSummary.substring(0, 120) + '...'
+                          : lesson.videoSummary
+                        }
+                      </p>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <PlayCircle className="w-4 h-4" />
+                          Video + Q&A
+                        </div>
+                        <div className="flex items-center gap-2 text-green-600 font-medium text-sm group-hover:gap-3 transition-all">
+                          Start Lesson
+                          <ChevronRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {lessons.length === 0 && (
+                <div className="text-center py-16">
+                  <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Lessons Available</h3>
+                  <p className="text-gray-600 mb-6">Lessons will appear here once they're created.</p>
+                  <a
+                    href="/admin"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Go to Admin Panel
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'video':
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 p-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+                    <PlayCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">{currentLesson?.title}</h2>
+                    <p className="text-gray-600">Watch the lesson, then we'll discuss what you learned</p>
+                  </div>
+                </div>
+              </div>
+              
+              {currentLesson && (
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/20">
+                  <VideoPlayer
+                    videoUrl={currentLesson.videoUrl}
+                    title={currentLesson.title}
+                    onVideoEnd={handleVideoEnd}
+                    className="w-full mb-6"
+                  />
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {isVideoCompleted && (
+                        <div className="flex items-center gap-2 text-green-600 font-medium">
+                          <CheckCircle className="w-5 h-5" />
+                          Video Completed
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      {isVideoCompleted && (
+                        <button
+                          onClick={() => setCurrentMode('conversation')}
+                          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg"
+                        >
+                          <MessageSquare className="w-5 h-5" />
+                          Start Q&A Discussion
+                        </button>
+                      )}
+                      <button
+                        onClick={handleEndSession}
+                        className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        End Session
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'conversation':
+        return (
+          <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
+            {/* Enhanced Conversation Header */}
+            <div className="bg-white/90 backdrop-blur-sm p-4 border-b border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      {currentSession?.sessionType === 'lesson_based' && currentLesson ? 
+                        `Q&A: ${currentLesson.title}` : 
+                        'Financial Conversation with Sanjay'
+                      }
+                    </h2>
+                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                      {currentSession?.sessionType === 'lesson_based' ? 
+                        'Discuss what you learned from the video' :
+                        'Ask any financial questions or share your concerns'
+                      }
+                      <div className={`w-2 h-2 rounded-full ${
+                        connectionStatus === 'connected' ? 'bg-green-500' : 
+                        connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 
+                        'bg-gray-400'
+                      }`}></div>
+                      <span className="text-xs">
+                        {connectionStatus === 'connected' ? 'Connected' : 
+                         connectionStatus === 'connecting' ? 'Connecting...' : 
+                         'Ready'}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowConversationPanel(!showConversationPanel)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                      showConversationPanel 
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Transcript
+                  </button>
+                  
+                  <button
+                    onClick={handleEndSession}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                    End Session
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Conversation Content */}
+            <div className="flex-1 flex">
+              {/* Main Conversation Area */}
+              <div className="flex-1 flex flex-col">
+                {currentSession && (
+                  <ConversationalAI
+                    sessionId={currentSession.id}
+                    onStatusChange={handleStatusChange}
+                    onError={handleConversationError}
+                    className="flex-1 p-8"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="relative">
+      {/* Error Alert */}
+      {error && (
+        <div className="fixed top-4 left-4 right-4 z-50 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 shadow-lg">
+          <div className="text-red-600">⚠️</div>
+          <span className="text-red-800 flex-1">{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-800 transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Mode Content */}
+      {renderModeContent()}
+
+      {/* Collapsible Conversation Panel */}
+      {currentSession && (currentMode === 'conversation' || showConversationPanel) && (
+        <ConversationPanel
+          sessionId={currentSession.id}
+          isOpen={showConversationPanel}
+          onToggle={() => setShowConversationPanel(!showConversationPanel)}
+          className="fixed right-0 top-0 h-full border-l border-gray-200 bg-white shadow-2xl z-40"
+        />
+      )}
+    </div>
+  );
+}

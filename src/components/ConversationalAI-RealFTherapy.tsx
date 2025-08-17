@@ -31,6 +31,7 @@ export default function ConversationalAI({
   const [isConnecting, setIsConnecting] = useState(false);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [hasAutoStarted, setHasAutoStarted] = useState(false);
   
   // Refs for conversation management
   const streamRef = useRef<MediaStream | null>(null);
@@ -417,6 +418,27 @@ export default function ConversationalAI({
       }
     }
   }, []);
+
+  // Auto-start conversation on mount
+  useEffect(() => {
+    // Check if we should auto-start (only once)
+    if (!hasAutoStarted && connectionStatus === 'idle' && !isConnecting) {
+      const autoStart = localStorage.getItem('autoStartConversation');
+      
+      // Auto-start if flag is set or if coming from "Start Talking" button
+      if (autoStart === 'true') {
+        console.log('[ConversationalAI] Auto-starting conversation...');
+        setHasAutoStarted(true);
+        
+        // Small delay to ensure component is fully mounted
+        setTimeout(() => {
+          startConversation();
+          // Clear the flag after use
+          localStorage.removeItem('autoStartConversation');
+        }, 500);
+      }
+    }
+  }, [hasAutoStarted, connectionStatus, isConnecting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup on unmount
   useEffect(() => {

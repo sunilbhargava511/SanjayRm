@@ -55,6 +55,9 @@ export default function HomePage() {
 
   const handleStartNewSession = async () => {
     try {
+      // Set flag to auto-start conversation
+      localStorage.setItem('autoStartConversation', 'true');
+      
       // Create a new educational session
       const response = await fetch('/api/educational-session', {
         method: 'POST',
@@ -76,7 +79,8 @@ export default function HomePage() {
         if (data.conversationMode === 'open-ended') {
           // Structured conversation is disabled - notify user about open-ended conversation mode
           console.log('Structured conversation is disabled, starting open-ended conversation mode');
-          alert('Structured conversation is currently disabled. Starting open-ended conversation mode instead.');
+          // Remove the alert - it's too disruptive
+          // alert('Structured conversation is currently disabled. Starting open-ended conversation mode instead.');
         }
         
         setCurrentView('voice');
@@ -85,10 +89,14 @@ export default function HomePage() {
         const errorData = await response.json();
         console.error('Failed to create session:', errorData.error || 'Unknown error');
         alert(errorData.error || 'Failed to start session. Please try again.');
+        // Clear auto-start flag on error
+        localStorage.removeItem('autoStartConversation');
       }
     } catch (error) {
       console.error('Error creating educational session:', error);
       alert('Failed to start educational session. Please try again.');
+      // Clear auto-start flag on error
+      localStorage.removeItem('autoStartConversation');
     }
   };
 

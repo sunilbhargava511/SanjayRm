@@ -122,6 +122,47 @@ export const sessionReports = sqliteTable('session_reports', {
   generatedAt: text('generated_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
 
+// Unified conversation sessions (new session system)
+export const conversationSessions = sqliteTable('conversation_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id'), // Optional for future user accounts
+  sessionType: text('session_type').notNull(), // 'open_ended' | 'lesson_based'
+  lessonPhase: text('lesson_phase'), // 'lesson_intro' | 'video_watching' | 'qa_conversation'
+  currentLessonId: text('current_lesson_id'), // NULL for open-ended, lesson ID for lesson-based
+  elevenlabsConversationId: text('elevenlabs_conversation_id'), // When voice connected
+  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'completed'
+  startedAt: text('started_at').default(sql`(CURRENT_TIMESTAMP)`),
+  endedAt: text('ended_at'),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Complete message transcript (EVERYTHING)
+export const conversationMessages = sqliteTable('conversation_messages', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(), // Foreign key to conversation_sessions
+  messageType: text('message_type').notNull(), // 'tts_opening' | 'tts_lesson_intro' | 'user_voice' | 'assistant_voice' | 'llm_qa_start' | 'system'
+  content: text('content').notNull(), // Actual message text
+  speaker: text('speaker').notNull(), // 'user' | 'assistant' | 'system'
+  elevenlabsMessageId: text('elevenlabs_message_id'), // If from ElevenLabs
+  lessonContextId: text('lesson_context_id'), // If lesson-related
+  timestamp: text('timestamp').default(sql`(CURRENT_TIMESTAMP)`),
+  metadata: text('metadata'), // JSON for additional context
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Admin-configured opening messages
+export const openingMessages = sqliteTable('opening_messages', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'general_opening' | 'lesson_intro'
+  lessonId: text('lesson_id'), // NULL for general, specific lesson ID for lesson intros
+  messageContent: text('message_content').notNull(), // The TTS message text
+  voiceSettings: text('voice_settings'), // JSON: voice_id, speed, etc.
+  active: integer('active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // Export types for TypeScript
 export type Lesson = typeof lessons.$inferSelect;
 export type NewLesson = typeof lessons.$inferInsert;
@@ -152,3 +193,12 @@ export type NewSessionProgress = typeof sessionProgress.$inferInsert;
 
 export type SessionReport = typeof sessionReports.$inferSelect;
 export type NewSessionReport = typeof sessionReports.$inferInsert;
+
+export type ConversationSession = typeof conversationSessions.$inferSelect;
+export type NewConversationSession = typeof conversationSessions.$inferInsert;
+
+export type ConversationMessage = typeof conversationMessages.$inferSelect;
+export type NewConversationMessage = typeof conversationMessages.$inferInsert;
+
+export type OpeningMessage = typeof openingMessages.$inferSelect;
+export type NewOpeningMessage = typeof openingMessages.$inferInsert;
