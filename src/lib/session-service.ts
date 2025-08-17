@@ -146,8 +146,10 @@ ${availableLessons.map(lesson => `- ${lesson.id}: ${lesson.title} - ${lesson.vid
 Analyze the conversation and recommend the most relevant lesson. Respond with only the lesson ID if you find a good match, or "NONE" if no lesson seems particularly relevant to the conversation context.`;
 
       const response = await claudeService.sendMessage([{
-        role: 'user',
-        content: recommendationPrompt
+        id: 'recommendation_prompt',
+        sender: 'user',
+        content: recommendationPrompt,
+        timestamp: new Date()
       }]);
 
       const recommendedLessonId = response.trim();
