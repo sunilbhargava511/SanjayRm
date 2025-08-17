@@ -254,11 +254,11 @@ export class SessionTranscriptService {
 
     const messages = await this.getCompleteTranscript(sessionId);
     
-    const startTime = new Date(session.startedAt).getTime();
+    const startTime = new Date(session.startedAt || new Date()).getTime();
     const endTime = session.endedAt ? new Date(session.endedAt).getTime() : Date.now();
     const lastActivity = messages.length > 0 ? 
       messages[messages.length - 1].timestamp : 
-      new Date(session.startedAt);
+      new Date(session.startedAt || new Date());
 
     return {
       messageCount: messages.length,
