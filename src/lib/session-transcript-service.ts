@@ -212,7 +212,7 @@ export class SessionTranscriptService {
         content: message.content,
         sender: message.speaker as 'user' | 'assistant',
         timestamp: message.timestamp,
-        type: message.speaker
+        type: message.speaker as 'user' | 'assistant'
       }));
   }
 
