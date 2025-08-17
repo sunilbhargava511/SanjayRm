@@ -437,7 +437,7 @@ export async function POST(request: NextRequest) {
         if (useStructuredMode && educationalSession && educationalSessionId) {
           // Check if this is delivering a new chunk (contains structured content patterns)
           const hasChunkPattern = responseContent.includes('---') || // Chunk separator
-                                 responseContent.match(/\n\n[A-Z]/) || // New section pattern
+                                 !!responseContent.match(/\n\n[A-Z]/) || // New section pattern
                                  responseContent.length > 300; // Long educational content
           
           // Check if this is a first delivery or advancement to new chunk
