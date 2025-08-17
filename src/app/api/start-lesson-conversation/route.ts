@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lessonService } from '@/lib/lesson-service';
-import { ElevenLabsService } from '@/lib/elevenlabs';
 import { db } from '@/lib/database';
 import * as schema from '@/lib/database/schema';
 import { eq, and } from 'drizzle-orm';
@@ -95,32 +94,43 @@ Use this context to provide relevant, personalized responses about the lesson co
       ? adminSettings[0].voiceId 
       : 'pNInz6obpgDQGcFmaJgB'; // Default voice
 
-    // Start ElevenLabs conversation
-    const elevenLabs = new ElevenLabsService();
-    const conversationResponse = await elevenLabs.startConversation({
-      firstMessage: lesson.question,
-      systemPrompt: enhancedPrompt,
-      voiceId: voiceId
+    // Start ElevenLabs conversation using the existing API pattern
+    const conversationResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/elevenlabs-conversation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstMessage: lesson.question,
+        voiceId: voiceId,
+        voiceSettings: {
+          stability: 0.6,
+          similarity_boost: 0.8,
+          style: 0.4,
+          use_speaker_boost: true
+        }
+      })
     });
 
-    if (!conversationResponse.success) {
+    if (!conversationResponse.ok) {
+      const errorData = await conversationResponse.json();
       return NextResponse.json(
-        { error: 'Failed to start conversation' },
+        { error: errorData.error || 'Failed to start conversation' },
         { status: 500 }
       );
     }
+
+    const conversationData = await conversationResponse.json();
 
     // Create lesson conversation record
     const lessonConversation = await lessonService.createLessonConversation(
       sessionId,
       lessonId,
-      conversationResponse.conversationId
+      conversationData.conversationId
     );
 
     return NextResponse.json({
       success: true,
-      conversationId: conversationResponse.conversationId,
-      conversationUrl: conversationResponse.conversationUrl,
+      conversationId: conversationData.conversationId,
+      conversationUrl: conversationData.conversationUrl,
       lessonConversation: lessonConversation,
       lesson: {
         id: lesson.id,

@@ -354,7 +354,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         
         try {
           // Build enhanced prompt with potential lesson context
-          const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId, userInput);
+          const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId || '', userInput);
           
           const formattedMessages: Message[] = messages.map((msg, index) => ({
             id: `msg_${index}`,
@@ -385,7 +385,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       try {
         // Build enhanced prompt with potential lesson context
-        const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId, userInput);
+        const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId || '', userInput);
         
         console.log(`[${requestId}] Using enhanced prompt. Lesson context:`, lessonContext ? 'Yes' : 'No');
         if (lessonContext) {

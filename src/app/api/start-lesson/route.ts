@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lessonService } from '@/lib/lesson-service';
-import { ElevenLabsService } from '@/lib/elevenlabs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,25 +42,12 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // If lesson has a start message, generate TTS audio
+    // If lesson has a start message, prepare it for TTS (audio generation will be handled client-side)
     if (lesson.startMessage) {
-      try {
-        const elevenLabs = new ElevenLabsService();
-        const audioUrl = await elevenLabs.generateSpeech(lesson.startMessage);
-        
-        response.startMessage = {
-          text: lesson.startMessage,
-          audioUrl: audioUrl
-        };
-      } catch (error) {
-        console.error('TTS generation failed:', error);
-        // Return lesson without audio if TTS fails
-        response.startMessage = {
-          text: lesson.startMessage,
-          audioUrl: null,
-          error: 'TTS generation failed'
-        };
-      }
+      response.startMessage = {
+        text: lesson.startMessage,
+        audioUrl: null // Audio generation will be handled by TTSPlayer component
+      };
     }
 
     return NextResponse.json(response);
