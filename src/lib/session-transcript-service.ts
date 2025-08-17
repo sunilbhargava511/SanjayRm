@@ -149,7 +149,7 @@ export class SessionTranscriptService {
       speaker: message.speaker as SessionTranscriptMessage['speaker'],
       elevenlabsMessageId: message.elevenlabsMessageId || undefined,
       lessonContextId: message.lessonContextId || undefined,
-      timestamp: new Date(message.timestamp),
+      timestamp: new Date(message.timestamp || new Date()),
       metadata: message.metadata ? JSON.parse(message.metadata) : undefined
     };
   }
@@ -169,7 +169,7 @@ export class SessionTranscriptService {
       speaker: message.speaker as SessionTranscriptMessage['speaker'],
       elevenlabsMessageId: message.elevenlabsMessageId || undefined,
       lessonContextId: message.lessonContextId || undefined,
-      timestamp: new Date(message.timestamp),
+      timestamp: new Date(message.timestamp || new Date()),
       metadata: message.metadata ? JSON.parse(message.metadata) : undefined
     }));
   }
