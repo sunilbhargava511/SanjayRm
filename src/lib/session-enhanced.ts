@@ -36,6 +36,61 @@ export class EnhancedSessionStorage {
     }
   }
 
+  // Lesson State Management
+  static setLessonState(sessionId: string, lessonId: string, phase: 'start_message' | 'video' | 'conversation' | 'completed', conversationId?: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+
+    session.currentLessonId = lessonId;
+    session.lessonPhase = phase;
+    if (conversationId) {
+      session.lessonConversationId = conversationId;
+      // Also map the ElevenLabs conversation to this session
+      this.mapElevenLabsConversation(conversationId, sessionId);
+    }
+    
+    this.saveSession(session);
+  }
+
+  static getCurrentLessonState(sessionId: string): { lessonId: string; phase: string; conversationId?: string } | null {
+    const session = this.getSession(sessionId);
+    if (!session || !session.currentLessonId) return null;
+
+    return {
+      lessonId: session.currentLessonId,
+      phase: session.lessonPhase || 'start_message',
+      conversationId: session.lessonConversationId
+    };
+  }
+
+  static clearLessonState(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+
+    session.currentLessonId = undefined;
+    session.lessonPhase = undefined;
+    session.lessonConversationId = undefined;
+    
+    this.saveSession(session);
+  }
+
+  // Check if any session is currently in a lesson with given conversation ID
+  static getLessonStateByConversationId(conversationId: string): { sessionId: string; lessonId: string; phase: string } | null {
+    const sessionId = this.getElevenLabsMapping()[conversationId];
+    if (!sessionId) return null;
+
+    const session = this.getSession(sessionId);
+    if (!session || !session.currentLessonId || session.lessonConversationId !== conversationId) {
+      return null;
+    }
+
+    return {
+      sessionId,
+      lessonId: session.currentLessonId,
+      phase: session.lessonPhase || 'conversation'
+    };
+  }
+
   // Session Management
   static createNewSession(title?: string): Session {
     const session: Session = {

@@ -7,6 +7,7 @@ export const lessons = sqliteTable('lessons', {
   title: text('title').notNull(),
   videoUrl: text('video_url').notNull(), // YouTube URL
   videoSummary: text('video_summary').notNull(), // Context for LLM during Q&A
+  startMessage: text('start_message'), // TTS message played before video
   question: text('question').notNull(), // FirstMessage for Q&A conversation
   orderIndex: integer('order_index').notNull(),
   prerequisites: text('prerequisites'), // JSON array of lesson IDs

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw } from 'lucide-react';
 
 interface VideoPlayerProps {
@@ -8,24 +8,33 @@ interface VideoPlayerProps {
   title?: string;
   onVideoEnd?: () => void;
   onVideoStart?: () => void;
+  onTTSComplete?: () => void; // Called when TTS intro finishes
   autoPlay?: boolean;
+  waitForTTS?: boolean; // If true, don't auto-play until TTS completes
   className?: string;
 }
 
-export default function VideoPlayer({
+export interface VideoPlayerRef {
+  handleTTSComplete: () => void;
+}
+
+const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(function VideoPlayer({
   videoUrl,
   title,
   onVideoEnd,
   onVideoStart,
+  onTTSComplete,
   autoPlay = false,
+  waitForTTS = false,
   className = ''
-}: VideoPlayerProps) {
+}, ref) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [hasEnded, setHasEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [ttsCompleted, setTtsCompleted] = useState(!waitForTTS); // If not waiting for TTS, mark as completed
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -47,14 +56,28 @@ export default function VideoPlayer({
     }
   }, [videoId]);
 
+  // Handle TTS completion
+  const handleTTSComplete = () => {
+    setTtsCompleted(true);
+    onTTSComplete?.();
+  };
+
+  // Expose methods to parent components via ref
+  useImperativeHandle(ref, () => ({
+    handleTTSComplete
+  }));
+
   // Create YouTube embed URL with parameters
   const getEmbedUrl = () => {
     if (!videoId) return '';
     
+    // Only auto-play if autoPlay is true AND (not waiting for TTS OR TTS is completed)
+    const shouldAutoPlay = autoPlay && ttsCompleted;
+    
     const params = new URLSearchParams({
       enablejsapi: '1',
       origin: window.location.origin,
-      autoplay: autoPlay ? '1' : '0',
+      autoplay: shouldAutoPlay ? '1' : '0',
       rel: '0', // Don't show related videos from other channels
       modestbranding: '1', // Minimal YouTube branding
       controls: '1', // Show player controls
@@ -128,6 +151,14 @@ export default function VideoPlayer({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [hasStarted, onVideoStart, onVideoEnd]);
+
+  // Re-render iframe when TTS completes to trigger autoplay if needed
+  useEffect(() => {
+    if (ttsCompleted && autoPlay && iframeRef.current && !hasStarted) {
+      // Reload iframe to trigger autoplay now that TTS is complete
+      iframeRef.current.src = getEmbedUrl();
+    }
+  }, [ttsCompleted, autoPlay, hasStarted]);
 
   if (error) {
     return (
@@ -217,6 +248,11 @@ export default function VideoPlayer({
           <div className="flex items-center gap-2 text-sm text-gray-600">
             {isLoading ? (
               <span>Loading...</span>
+            ) : waitForTTS && !ttsCompleted ? (
+              <>
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                <span>Listen to introduction first</span>
+              </>
             ) : hasEnded ? (
               <>
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -257,4 +293,6 @@ export default function VideoPlayer({
       )}
     </div>
   );
-}
+});
+
+export default VideoPlayer;

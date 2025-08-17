@@ -20,14 +20,17 @@ import { Session, Lesson } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
 import ConversationalInterface from '@/components/ConversationalInterface';
 import KnowledgeBase from '@/components/knowledge/KnowledgeBase';
+import LessonInterface from '@/components/LessonInterface';
 
-type ViewType = 'home' | 'voice' | 'knowledge' | 'sessions';
+type ViewType = 'home' | 'voice' | 'knowledge' | 'sessions' | 'lesson';
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [userName] = useState('Michael'); // Could be dynamic from user settings
+  const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
   useEffect(() => {
     // Load recent sessions
@@ -95,22 +98,17 @@ export default function HomePage() {
   
   const handleLessonClick = async (lesson: Lesson) => {
     try {
-      // Create a lesson-specific session
-      const response = await fetch('/api/educational-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create',
-          lessonId: lesson.id,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('currentEducationalSessionId', data.session.id);
-        localStorage.setItem('conversationMode', data.conversationMode);
-        setCurrentView('voice');
+      // Generate or get existing session ID
+      let sessionId = localStorage.getItem('currentUserSessionId');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('currentUserSessionId', sessionId);
       }
+      
+      setCurrentLessonId(lesson.id);
+      setCurrentSessionId(sessionId);
+      setCurrentView('lesson');
+      
     } catch (error) {
       console.error('Error starting lesson:', error);
       alert('Failed to start lesson. Please try again.');
@@ -139,6 +137,22 @@ export default function HomePage() {
 
   if (currentView === 'knowledge') {
     return <KnowledgeBase onBack={() => setCurrentView('home')} />;
+  }
+
+  if (currentView === 'lesson' && currentLessonId && currentSessionId) {
+    return (
+      <LessonInterface
+        lessonId={currentLessonId}
+        sessionId={currentSessionId}
+        onBack={() => setCurrentView('home')}
+        onComplete={() => {
+          // Mark lesson as completed and return to home
+          setCurrentView('home');
+          // Optionally refresh lessons to show progress
+          loadLessons();
+        }}
+      />
+    );
   }
 
   const stats = getProgressStats();

@@ -488,6 +488,7 @@ export default function AdminPanel() {
       title: formData.get('title') as string,
       videoUrl: formData.get('videoUrl') as string,
       videoSummary: formData.get('videoSummary') as string,
+      startMessage: formData.get('startMessage') as string || undefined,
       question: formData.get('question') as string,
       prerequisites: JSON.parse((formData.get('prerequisites') as string) || '[]'),
     };
@@ -525,6 +526,7 @@ export default function AdminPanel() {
       title: formData.get('title') as string,
       videoUrl: formData.get('videoUrl') as string,
       videoSummary: formData.get('videoSummary') as string,
+      startMessage: formData.get('startMessage') as string || undefined,
       question: formData.get('question') as string,
       prerequisites: JSON.parse((formData.get('prerequisites') as string) || '[]'),
     };
@@ -1314,6 +1316,21 @@ The lesson context will be automatically added to this prompt when used.`;
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Message (TTS Introduction)
+                      </label>
+                      <textarea
+                        name="startMessage"
+                        rows={3}
+                        defaultValue={editingLesson?.startMessage || ''}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Welcome to this lesson on retirement planning. Before we watch the video, let me introduce what you'll be learning today..."
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Optional message played via TTS before the video starts (leave empty to skip)
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Prerequisites (JSON Array)
                       </label>
                       <textarea
@@ -1423,6 +1440,19 @@ The lesson context will be automatically added to this prompt when used.`;
                               <p className="text-sm font-medium text-gray-700 mb-1">Q&A Opening Question:</p>
                               <p className="text-gray-800">{lesson.question}</p>
                             </div>
+
+                            {/* Start Message */}
+                            {lesson.startMessage && (
+                              <div className="bg-blue-50 rounded-md p-3 mb-3">
+                                <p className="text-sm font-medium text-blue-700 mb-1">TTS Introduction:</p>
+                                <p className="text-blue-900 text-sm leading-relaxed">
+                                  {lesson.startMessage.length > 150 
+                                    ? lesson.startMessage.substring(0, 150) + '...'
+                                    : lesson.startMessage
+                                  }
+                                </p>
+                              </div>
+                            )}
 
                             {/* Prerequisites */}
                             {lesson.prerequisites.length > 0 && (

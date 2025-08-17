@@ -5,6 +5,11 @@ import { Message } from '@/types';
 import { sessionManager, SessionData } from '@/lib/elevenlabs-session-manager';
 import { educationalSessionService } from '@/lib/educational-session';
 import { initializeDatabase } from '@/lib/database';
+import { EnhancedSessionStorage } from '@/lib/session-enhanced';
+import { lessonService } from '@/lib/lesson-service';
+import { db } from '@/lib/database';
+import * as schema from '@/lib/database/schema';
+import { eq, and } from 'drizzle-orm';
 
 // ElevenLabs webhook request format (from FTherapy reference)
 interface ElevenLabsWebhookRequest {
@@ -59,6 +64,129 @@ function buildConversationContext(messages: Array<{ role: string; content: strin
     .filter(msg => msg.role !== 'system')
     .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
     .join('\n');
+}
+
+// Build enhanced prompt with lesson context
+async function buildEnhancedPrompt(conversationId: string, userInput: string): Promise<{ prompt: string; lessonContext?: any }> {
+  try {
+    // Check if we're in a lesson conversation
+    const lessonState = EnhancedSessionStorage.getLessonStateByConversationId(conversationId);
+    
+    if (lessonState) {
+      console.log(`Found lesson state for conversation ${conversationId}:`, lessonState);
+      
+      // Get lesson details
+      const lesson = await lessonService.getLesson(lessonState.lessonId);
+      if (!lesson) {
+        console.warn(`Lesson ${lessonState.lessonId} not found`);
+        return { prompt: await getGeneralPrompt() };
+      }
+      
+      // Get lesson-specific prompt
+      const lessonPrompts = await db
+        .select()
+        .from(schema.systemPrompts)
+        .where(
+          and(
+            eq(schema.systemPrompts.type, 'lesson_qa'),
+            eq(schema.systemPrompts.lessonId, lessonState.lessonId),
+            eq(schema.systemPrompts.active, true)
+          )
+        )
+        .limit(1);
+      
+      // Get general Q&A prompt as fallback
+      const generalPrompt = await getGeneralPrompt();
+      
+      let combinedPrompt = generalPrompt;
+      
+      if (lessonPrompts.length > 0) {
+        const lessonPrompt = lessonPrompts[0].content;
+        
+        // Combine general and lesson-specific prompts
+        combinedPrompt = `${generalPrompt}
+
+LESSON-SPECIFIC CONTEXT:
+${lessonPrompt}
+
+LESSON DETAILS:
+- Lesson Title: ${lesson.title}
+- Video Summary: ${lesson.videoSummary}
+- Current Phase: ${lessonState.phase}
+- Initial Question: ${lesson.question}
+
+When responding, prioritize lesson-specific guidance while maintaining your general advisory capabilities. Reference the video content when appropriate and help the user understand and apply the concepts discussed in this lesson.`;
+      } else {
+        // Use general prompt with lesson context
+        combinedPrompt = `${generalPrompt}
+
+CURRENT LESSON CONTEXT:
+You are currently discussing "${lesson.title}" with the user. 
+
+Video Summary: ${lesson.videoSummary}
+Initial Question: ${lesson.question}
+Current Phase: ${lessonState.phase}
+
+Use this context to provide relevant, lesson-focused responses while maintaining your general financial advisory capabilities.`;
+      }
+      
+      return {
+        prompt: combinedPrompt,
+        lessonContext: {
+          lessonId: lessonState.lessonId,
+          title: lesson.title,
+          phase: lessonState.phase,
+          hasLessonPrompt: lessonPrompts.length > 0
+        }
+      };
+    }
+    
+    // Not in a lesson, use general prompt
+    return { prompt: await getGeneralPrompt() };
+    
+  } catch (error) {
+    console.error('Error building enhanced prompt:', error);
+    // Fallback to general prompt on error
+    return { prompt: await getGeneralPrompt() };
+  }
+}
+
+// Get general Q&A prompt
+async function getGeneralPrompt(): Promise<string> {
+  try {
+    const generalPrompts = await db
+      .select()
+      .from(schema.systemPrompts)
+      .where(
+        and(
+          eq(schema.systemPrompts.type, 'qa'),
+          eq(schema.systemPrompts.active, true)
+        )
+      )
+      .limit(1);
+    
+    if (generalPrompts.length > 0) {
+      return generalPrompts[0].content;
+    }
+    
+    // Fallback prompt if none found in database
+    return `You are Sanjay, a warm, empathetic AI financial advisor who specializes in helping people develop healthy relationships with money. 
+
+Your approach:
+- Listen actively and ask thoughtful follow-up questions
+- Provide practical, actionable advice
+- Help clients identify emotional patterns around money
+- Offer personalized strategies for financial wellness
+- Maintain a supportive, non-judgmental tone
+- Focus on behavioral change and sustainable habits
+
+Keep responses conversational, warm, and focused on the human experience of financial decision-making.`;
+    
+  } catch (error) {
+    console.error('Error fetching general prompt:', error);
+    // Hard-coded fallback
+    return `You are Sanjay, a friendly AI financial advisor. Help the user with their financial questions and provide practical, actionable advice.`;
+  }
 }
 
 // Webhook signature verification (optional for development)
@@ -220,11 +348,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         
       } catch (educationalError) {
         console.error(`[${requestId}] Educational session processing failed:`, educationalError);
-        // Fall back to Claude processing
-        console.log(`[${requestId}] Falling back to Claude (open-ended mode)...`);
+        // Fall back to Claude processing with enhanced prompts
+        console.log(`[${requestId}] Falling back to Claude with enhanced prompts...`);
         const claudeService = getClaudeService();
         
         try {
+          // Build enhanced prompt with potential lesson context
+          const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId, userInput);
+          
           const formattedMessages: Message[] = messages.map((msg, index) => ({
             id: `msg_${index}`,
             content: msg.content,
@@ -232,8 +363,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             timestamp: new Date()
           }));
           
-          const response = await claudeService.sendMessageWithContext(formattedMessages, userInput);
-          aiResponse = response.response;
+          const response = await claudeService.sendMessage(formattedMessages, enhancedPrompt);
+          aiResponse = response;
+          
+          console.log(`[${requestId}] Fallback successful with lesson context:`, lessonContext ? 'Yes' : 'No');
         } catch (claudeError) {
           console.error(`[${requestId}] Claude processing also failed:`, claudeError);
           aiResponse = "I apologize, but I'm having technical difficulties. Please try again.";
@@ -242,7 +375,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         updatedVariables = {
           ...variables,
           structured_mode: false,
-          conversation_mode: 'open-ended'
+          conversation_mode: 'fallback'
         };
       }
     } else {
@@ -251,6 +384,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const claudeService = getClaudeService();
       
       try {
+        // Build enhanced prompt with potential lesson context
+        const { prompt: enhancedPrompt, lessonContext } = await buildEnhancedPrompt(conversationId, userInput);
+        
+        console.log(`[${requestId}] Using enhanced prompt. Lesson context:`, lessonContext ? 'Yes' : 'No');
+        if (lessonContext) {
+          console.log(`[${requestId}] Lesson: ${lessonContext.title} (${lessonContext.phase})`);
+        }
+        
         // Convert messages to our Message format for Claude
         const formattedMessages: Message[] = messages.map((msg, index) => ({
           id: `msg_${index}`,
@@ -259,15 +400,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           timestamp: new Date()
         }));
         
-        // Generate response with context
-        const response = await claudeService.sendMessageWithContext(formattedMessages, userInput);
-        aiResponse = response.response;
+        // Generate response with enhanced context
+        const response = await claudeService.sendMessage(formattedMessages, enhancedPrompt);
+        aiResponse = response;
         
-        // Update variables for open-ended mode
+        // Update variables for open-ended mode with lesson context if available
         updatedVariables = {
           ...variables,
           structured_mode: false,
-          conversation_mode: 'open-ended'
+          conversation_mode: lessonContext ? 'lesson_qa' : 'open-ended',
+          ...(lessonContext && {
+            lesson_id: lessonContext.lessonId,
+            lesson_title: lessonContext.title,
+            lesson_phase: lessonContext.phase,
+            has_lesson_prompt: lessonContext.hasLessonPrompt
+          })
         };
         
       } catch (claudeError) {

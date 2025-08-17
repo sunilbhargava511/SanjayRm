@@ -19,6 +19,10 @@ export interface Session {
   summary?: string;
   isActive?: boolean; // Add missing field used in code
   metadata?: Record<string, any>; // For storing additional data like ElevenLabs conversation ID
+  // Lesson state tracking
+  currentLessonId?: string; // If in a lesson, which lesson
+  lessonPhase?: 'start_message' | 'video' | 'conversation' | 'completed'; // Current phase of lesson
+  lessonConversationId?: string; // ElevenLabs conversation ID for lesson Q&A
 }
 
 export interface SessionNote {
@@ -189,6 +193,7 @@ export interface Lesson {
   title: string;
   videoUrl: string;
   videoSummary: string;
+  startMessage?: string; // TTS message played before video
   question: string; // FirstMessage for Q&A
   orderIndex: number;
   prerequisites: string[]; // Lesson IDs that must be completed first

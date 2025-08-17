@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
           title TEXT NOT NULL,
           video_url TEXT NOT NULL,
           video_summary TEXT NOT NULL,
+          start_message TEXT,
           question TEXT NOT NULL,
           prerequisites TEXT DEFAULT '[]',
           order_index INTEGER DEFAULT 0,
@@ -42,6 +43,18 @@ export async function POST(request: NextRequest) {
       console.log('✅ Created lessons table');
     } else {
       console.log('✅ lessons table already exists');
+      
+      // Check if start_message column exists in lessons table
+      const lessonsTableInfo = sqlite.prepare(`PRAGMA table_info(lessons)`).all();
+      const hasStartMessageColumn = lessonsTableInfo.some((col: any) => col.name === 'start_message');
+      
+      if (!hasStartMessageColumn) {
+        console.log('Adding start_message column to lessons table...');
+        sqlite.exec(`ALTER TABLE lessons ADD COLUMN start_message TEXT;`);
+        console.log('✅ Added start_message column');
+      } else {
+        console.log('✅ start_message column already exists');
+      }
     }
     
     console.log('Database migration completed successfully');

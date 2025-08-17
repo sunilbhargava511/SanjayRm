@@ -15,6 +15,7 @@ export class LessonService {
     title: string;
     videoUrl: string;
     videoSummary: string;
+    startMessage?: string;
     question: string;
     orderIndex?: number;
     prerequisites?: string[];
@@ -33,6 +34,7 @@ export class LessonService {
       title: lessonData.title,
       videoUrl: lessonData.videoUrl,
       videoSummary: lessonData.videoSummary,
+      startMessage: lessonData.startMessage,
       question: lessonData.question,
       orderIndex,
       prerequisites: JSON.stringify(lessonData.prerequisites || []),
@@ -310,6 +312,7 @@ export class LessonService {
       title: dbLesson.title,
       videoUrl: dbLesson.videoUrl,
       videoSummary: dbLesson.videoSummary,
+      startMessage: dbLesson.startMessage,
       question: dbLesson.question,
       orderIndex: dbLesson.orderIndex,
       prerequisites: dbLesson.prerequisites ? JSON.parse(dbLesson.prerequisites) : [],
