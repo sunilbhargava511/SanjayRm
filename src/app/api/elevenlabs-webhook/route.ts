@@ -69,16 +69,26 @@ function buildConversationContext(messages: Array<{ role: string; content: strin
 // Build enhanced prompt with lesson context
 async function buildEnhancedPrompt(conversationId: string, userInput: string): Promise<{ prompt: string; lessonContext?: any }> {
   try {
-    // Check if we're in a lesson conversation
-    const lessonState = EnhancedSessionStorage.getLessonStateByConversationId(conversationId);
+    // Check if we're in a lesson conversation by looking up in database
+    console.log(`Checking for lesson conversation with ID: ${conversationId}`);
     
-    if (lessonState) {
-      console.log(`Found lesson state for conversation ${conversationId}:`, lessonState);
+    const lessonConversations = await db
+      .select()
+      .from(schema.lessonConversations)
+      .where(eq(schema.lessonConversations.conversationId, conversationId))
+      .limit(1);
+    
+    if (lessonConversations.length > 0) {
+      const lessonConversation = lessonConversations[0];
+      console.log(`Found lesson conversation for ${conversationId}:`, {
+        lessonId: lessonConversation.lessonId,
+        sessionId: lessonConversation.sessionId
+      });
       
       // Get lesson details
-      const lesson = await lessonService.getLesson(lessonState.lessonId);
+      const lesson = await lessonService.getLesson(lessonConversation.lessonId);
       if (!lesson) {
-        console.warn(`Lesson ${lessonState.lessonId} not found`);
+        console.warn(`Lesson ${lessonConversation.lessonId} not found`);
         return { prompt: await getGeneralPrompt() };
       }
       
@@ -89,7 +99,7 @@ async function buildEnhancedPrompt(conversationId: string, userInput: string): P
         .where(
           and(
             eq(schema.systemPrompts.type, 'lesson_qa'),
-            eq(schema.systemPrompts.lessonId, lessonState.lessonId),
+            eq(schema.systemPrompts.lessonId, lessonConversation.lessonId),
             eq(schema.systemPrompts.active, true)
           )
         )
@@ -112,7 +122,7 @@ ${lessonPrompt}
 LESSON DETAILS:
 - Lesson Title: ${lesson.title}
 - Video Summary: ${lesson.videoSummary}
-- Current Phase: ${lessonState.phase}
+- Current Phase: conversation
 - Initial Question: ${lesson.question}
 
 When responding, prioritize lesson-specific guidance while maintaining your general advisory capabilities. Reference the video content when appropriate and help the user understand and apply the concepts discussed in this lesson.`;
@@ -125,7 +135,7 @@ You are currently discussing "${lesson.title}" with the user.
 
 Video Summary: ${lesson.videoSummary}
 Initial Question: ${lesson.question}
-Current Phase: ${lessonState.phase}
+Current Phase: conversation
 
 Use this context to provide relevant, lesson-focused responses while maintaining your general financial advisory capabilities.`;
       }
@@ -133,9 +143,9 @@ Use this context to provide relevant, lesson-focused responses while maintaining
       return {
         prompt: combinedPrompt,
         lessonContext: {
-          lessonId: lessonState.lessonId,
+          lessonId: lessonConversation.lessonId,
           title: lesson.title,
-          phase: lessonState.phase,
+          phase: 'conversation',
           hasLessonPrompt: lessonPrompts.length > 0
         }
       };
