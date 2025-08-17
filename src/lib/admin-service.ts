@@ -155,8 +155,9 @@ export class AdminService {
   }
 
   async uploadSystemPrompt(
-    type: 'content' | 'qa' | 'report',
-    content: string
+    type: 'qa' | 'report' | 'lesson_qa',
+    content: string,
+    lessonId?: string
   ): Promise<SystemPrompt> {
     const promptId = `${type}_prompt_${Date.now()}`;
     
@@ -171,6 +172,7 @@ export class AdminService {
       id: promptId,
       type,
       content,
+      lessonId,
       active: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -306,6 +308,7 @@ export class AdminService {
       id: dbPrompt.id,
       type: dbPrompt.type,
       content: dbPrompt.content,
+      lessonId: dbPrompt.lessonId,
       active: Boolean(dbPrompt.active),
       createdAt: new Date(dbPrompt.createdAt),
       updatedAt: new Date(dbPrompt.updatedAt),

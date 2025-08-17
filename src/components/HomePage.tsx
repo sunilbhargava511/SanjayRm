@@ -12,8 +12,11 @@ import {
   Target,
   TrendingUp,
   Settings,
+  Play,
+  Clock,
+  Eye,
 } from 'lucide-react';
-import { Session } from '@/types';
+import { Session, Lesson } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
 import ConversationalInterface from '@/components/ConversationalInterface';
 import KnowledgeBase from '@/components/knowledge/KnowledgeBase';
@@ -23,12 +26,29 @@ type ViewType = 'home' | 'voice' | 'knowledge' | 'sessions';
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [userName] = useState('Michael'); // Could be dynamic from user settings
+  
   useEffect(() => {
     // Load recent sessions
     const sessions = EnhancedSessionStorage.getAllSessions().slice(0, 5);
     setRecentSessions(sessions);
+    
+    // Load lessons
+    loadLessons();
   }, []);
+  
+  const loadLessons = async () => {
+    try {
+      const response = await fetch('/api/lessons?activeOnly=true');
+      if (response.ok) {
+        const data = await response.json();
+        setLessons(data.lessons || []);
+      }
+    } catch (error) {
+      console.error('Failed to load lessons:', error);
+    }
+  };
 
   const handleStartNewSession = async () => {
     try {
@@ -72,42 +92,45 @@ export default function HomePage() {
   const handleLoadSession = () => {
     setCurrentView('voice');
   };
+  
+  const handleLessonClick = async (lesson: Lesson) => {
+    try {
+      // Create a lesson-specific session
+      const response = await fetch('/api/educational-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          lessonId: lesson.id,
+        }),
+      });
 
-  const features = [
-    {
-      icon: <Mic className="w-6 h-6" />,
-      title: 'Voice-First Interaction',
-      description: 'Natural conversations with your AI advisor',
-      color: 'bg-blue-100 text-blue-600'
-    },
-    {
-      icon: <Bot className="w-6 h-6" />,
-      title: 'AI-Powered Advice',
-      description: 'Get personalized guidance from Sanjay',
-      color: 'bg-green-100 text-green-600'
-    },
-    {
-      icon: <BookOpen className="w-6 h-6" />,
-      title: 'Interactive Transcript',
-      description: 'Real-time conversation notes and insights',
-      color: 'bg-purple-100 text-purple-600'
-    },
-    {
-      icon: <TrendingUp className="w-6 h-6" />,
-      title: 'Knowledge Base',
-      description: 'Access comprehensive financial strategies',
-      color: 'bg-orange-100 text-orange-600'
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('currentEducationalSessionId', data.session.id);
+        localStorage.setItem('conversationMode', data.conversationMode);
+        setCurrentView('voice');
+      }
+    } catch (error) {
+      console.error('Error starting lesson:', error);
+      alert('Failed to start lesson. Please try again.');
     }
-  ];
-
-  const expertiseAreas = [
-    'Social Security Optimization',
-    'Retirement Planning',
-    'Investment Strategies',
-    'Estate Planning',
-    'Tax Efficiency',
-    'Financial Psychology'
-  ];
+  };
+  
+  const getProgressStats = () => {
+    const totalSessions = recentSessions.length;
+    const totalLessons = lessons.length;
+    const completedLessons = Math.floor(totalLessons * 0.6); // Mock completed percentage
+    const monthlyGrowth = '+$6,200'; // Mock data
+    const ytdReturn = '+18.4%'; // Mock data
+    
+    return {
+      monthlyGrowth,
+      sessionsCount: totalSessions,
+      completedLessons,
+      ytdReturn
+    };
+  };
 
   if (currentView === 'voice') {
     return <ConversationalInterface />;
@@ -118,202 +141,212 @@ export default function HomePage() {
     return <KnowledgeBase onBack={() => setCurrentView('home')} />;
   }
 
+  const stats = getProgressStats();
+  
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+      <header className="bg-white shadow-sm sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-5 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <Bot className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">AI Version of Sanjay Bhargava</h1>
-                <p className="text-gray-600">Retirement planning specialist with voice interaction</p>
-              </div>
+            <div className="text-2xl font-bold text-blue-600">
+              WealthCoach AI
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setCurrentView('knowledge')}
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <BookOpen className="w-5 h-5" />
-                Knowledge Base
-              </button>
-              {recentSessions.length > 0 && (
-                <button
-                  onClick={() => setCurrentView('sessions')}
-                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <History className="w-5 h-5" />
-                  Sessions
-                </button>
-              )}
-              <a
-                href="/admin"
-                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Admin Settings"
-              >
-                <Settings className="w-5 h-5" />
-                Admin
-              </a>
+              <span className="text-gray-700">Hi, {userName}</span>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white font-semibold">
+                {userName.charAt(0)}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <div className="relative inline-block">
-            <div className="w-32 h-32 mx-auto mb-6 relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full"></div>
-              <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center">
-                <User className="w-16 h-16 text-blue-600" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center border-4 border-white">
-                <Mic className="w-5 h-5 text-white" />
-              </div>
-            </div>
-          </div>
-          
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Meet Sanjay Bhargava
-          </h2>
-          <p className="text-xl text-gray-600 mb-2">
-            AI Retirement Planning Specialist
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-5 py-8">
+        {/* Welcome Section */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back, {userName}!
+          </h1>
+          <p className="text-lg text-gray-600">
+            Your financial journey continues to grow
           </p>
-          <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
-            PayPal founding member offering voice-guided financial conversations. 
-            Get personalized financial advice through interactive conversations designed to achieve &quot;Zero Financial Anxiety&quot;.
-          </p>
-          
-          <div className="flex flex-col items-center gap-6">
-            <button
-              onClick={handleStartNewSession}
-              className="flex items-center gap-3 px-12 py-6 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-colors shadow-2xl hover:shadow-3xl transform hover:scale-105 relative overflow-hidden group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Mic className="w-8 h-8 relative z-10" />
-              <span className="relative z-10">Start Conversation</span>
-              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse relative z-10"></div>
-            </button>
-            
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Voice Recognition Active</span>
-              </div>
-              <div className="w-1 h-4 bg-gray-300"></div>
-              <button
-                onClick={() => setCurrentView('knowledge')}
-                className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                <BookOpen className="w-4 h-4" />
-                Browse Articles
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          {features.map((feature, index) => (
-            <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}>
-                {feature.icon}
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-              <p className="text-gray-600 text-sm">{feature.description}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Expertise Areas */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-16">
-          <div className="flex items-center gap-3 mb-6">
-            <Target className="w-6 h-6 text-blue-600" />
-            <h3 className="text-2xl font-bold text-gray-900">Areas of Expertise</h3>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {expertiseAreas.map((area, index) => (
-              <div key={index} className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                <span className="text-gray-700 font-medium">{area}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Sessions */}
-        {recentSessions.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <History className="w-6 h-6 text-blue-600" />
-                <h3 className="text-2xl font-bold text-gray-900">Recent Sessions</h3>
-              </div>
-              <button
-                onClick={() => setCurrentView('sessions')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                View All
-              </button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {recentSessions.slice(0, 3).map((session) => (
-                <div
-                  key={session.id}
-                  onClick={() => handleLoadSession()}
-                  className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-medium text-gray-900 line-clamp-1">{session.title}</h4>
-                    <span className="text-xs text-gray-500">
-                      {session.updatedAt instanceof Date 
-                        ? session.updatedAt.toLocaleDateString()
-                        : new Date(session.updatedAt).toLocaleDateString()
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                    <MessageCircle className="w-4 h-4" />
-                    {session.messages.length} messages
-                    {session.notes.length > 0 && (
-                      <>
-                        <BookOpen className="w-4 h-4 ml-2" />
-                        {session.notes.length} notes
-                      </>
-                    )}
-                  </div>
-                  {session.summary && (
-                    <p className="text-sm text-gray-600 line-clamp-2">{session.summary}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Call to Action */}
-        <div className="text-center mt-16">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-white">
-            <Sparkles className="w-8 h-8 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold mb-4">Ready to Master Retirement Planning?</h3>
-            <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-              Experience structured financial education through voice-guided lessons, 
-              interactive Q&A, and personalized insights from Sanjay&apos;s proven strategies.
+        {/* Quick Start Card */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-10 text-white mb-10 relative overflow-hidden">
+          <div className="absolute right-[-50px] top-[-50px] w-48 h-48 bg-white bg-opacity-10 rounded-full"></div>
+          <div className="relative z-10">
+            <h2 className="text-3xl font-bold mb-3">
+              Start a Conversation
+            </h2>
+            <p className="text-lg mb-6 text-blue-100">
+              Ask any financial question or get personalized guidance from Sanjay
             </p>
             <button
               onClick={handleStartNewSession}
-              className="bg-white text-blue-600 px-8 py-4 rounded-xl font-semibold hover:bg-gray-100 transition-colors shadow-lg"
+              className="bg-white text-blue-600 px-8 py-4 text-lg font-semibold rounded-xl hover:bg-gray-100 transition-all transform hover:scale-105 flex items-center gap-3"
             >
-              Start Educational Program
+              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <Mic className="w-4 h-4 text-white" />
+              </div>
+              Start Talking
             </button>
           </div>
         </div>
-      </div>
+
+        {/* Dashboard Grid */}
+        <div className="grid lg:grid-cols-2 gap-6 mb-10">
+          {/* Recommended Lessons */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-semibold text-gray-900">Recommended Modules</h3>
+              <button 
+                onClick={() => setCurrentView('knowledge')}
+                className="text-blue-600 text-sm font-medium hover:text-blue-700"
+              >
+                Browse all →
+              </button>
+            </div>
+            <div className="space-y-3">
+              {lessons.slice(0, 3).map((lesson) => (
+                <div 
+                  key={lesson.id}
+                  onClick={() => handleLessonClick(lesson)}
+                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center text-2xl">
+                    💰
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900 mb-1">
+                      {lesson.title}
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      15 min module
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {lessons.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p>No lessons available yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Conversations */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-semibold text-gray-900">Recent Conversations</h3>
+              <button 
+                onClick={() => setCurrentView('sessions')}
+                className="text-blue-600 text-sm font-medium hover:text-blue-700"
+              >
+                View all →
+              </button>
+            </div>
+            <div className="space-y-3">
+              {recentSessions.slice(0, 3).map((session) => (
+                <div 
+                  key={session.id}
+                  onClick={handleLoadSession}
+                  className="p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <div className="text-xs text-gray-500 mb-1">
+                    {session.updatedAt instanceof Date 
+                      ? session.updatedAt.toLocaleDateString()
+                      : new Date(session.updatedAt).toLocaleDateString()
+                    }
+                  </div>
+                  <div className="font-medium text-gray-900 mb-1">
+                    {session.title}
+                  </div>
+                  <div className="text-sm text-gray-600 line-clamp-2">
+                    {session.summary || `${session.messages.length} messages exchanged`}
+                  </div>
+                </div>
+              ))}
+              {recentSessions.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p>No recent conversations</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Overview */}
+        <div className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-gray-900">Your Financial Progress</h3>
+            <button className="text-blue-600 text-sm font-medium hover:text-blue-700">
+              View details →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-1">
+                {stats.monthlyGrowth}
+              </div>
+              <div className="text-sm text-gray-600">Monthly Growth</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600 mb-1">
+                {stats.sessionsCount}
+              </div>
+              <div className="text-sm text-gray-600">Coaching Sessions</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600 mb-1">
+                {stats.completedLessons}
+              </div>
+              <div className="text-sm text-gray-600">Modules Completed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-1">
+                {stats.ytdReturn}
+              </div>
+              <div className="text-sm text-gray-600">YTD Return</div>
+            </div>
+          </div>
+          <div className="bg-white bg-opacity-50 rounded-xl h-48 flex items-center justify-center text-gray-500">
+            [Portfolio performance chart would go here]
+          </div>
+        </div>
+        
+        {/* Quick Actions */}
+        <div className="mt-8 text-center">
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => setCurrentView('knowledge')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              Knowledge Base
+            </button>
+            <button
+              onClick={() => setCurrentView('sessions')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <History className="w-4 h-4" />
+              Session History
+            </button>
+            <a
+              href="/admin"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              Admin Panel
+            </a>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

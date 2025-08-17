@@ -839,6 +839,99 @@ export default function AdminPanel() {
     URL.revokeObjectURL(url);
   };
 
+  // Create new lesson-specific prompt
+  const createLessonPrompt = async (lessonId: string) => {
+    try {
+      const lesson = lessons.find(l => l.id === lessonId);
+      const defaultContent = `You are Sanjay, an AI financial advisor discussing "${lesson?.title || 'this lesson'}" with the user.
+
+Based on the lesson video about ${lesson?.title || 'financial concepts'}, help the user:
+- Apply the concepts to their personal situation
+- Understand how this relates to their financial goals
+- Ask clarifying questions to deepen understanding
+- Connect this lesson to broader financial planning
+
+Remember to:
+- Reference the specific lesson content when relevant
+- Maintain a warm, supportive tone
+- Provide practical, actionable advice
+- Help them see real-world applications
+
+The lesson context and video summary will be automatically added to this prompt when used.`;
+
+      const response = await fetch('/api/admin/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'lesson_qa',
+          content: defaultContent,
+          lessonId: lessonId
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPrompts(prev => [...prev, data.prompt]);
+        setError(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create lesson prompt');
+      }
+    } catch (error) {
+      console.error('Error creating lesson prompt:', error);
+      setError('Failed to create lesson prompt');
+    }
+  };
+
+  // Create new system prompt
+  const createNewPrompt = async (type: string) => {
+    try {
+      const defaultContent = type === 'qa' 
+        ? `You are Sanjay, a warm, empathetic AI financial advisor who specializes in helping people develop healthy relationships with money.
+
+Your approach:
+- Listen actively and ask thoughtful follow-up questions
+- Provide practical, actionable advice
+- Help clients identify emotional patterns around money
+- Offer personalized strategies for financial wellness
+- Maintain a supportive, non-judgmental tone
+- Focus on behavioral change and sustainable habits
+
+Keep responses conversational, warm, and focused on the human experience of financial decision-making.`
+        : `You are Sanjay, an AI financial advisor discussing a specific lesson with the user. Use the lesson context provided to give informed, relevant responses.
+
+Guidelines:
+- Reference the lesson content when relevant
+- Help users apply lesson concepts to their specific situation
+- Encourage questions that deepen understanding
+- Connect lesson concepts to real-world financial decisions
+- Maintain the same warm, supportive tone as general conversations
+
+The lesson context will be automatically added to this prompt when used.`;
+
+      const response = await fetch('/api/admin/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          content: defaultContent
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPrompts(prev => [...prev, data.prompt]);
+        setError(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to create prompt');
+      }
+    } catch (error) {
+      console.error('Error creating prompt:', error);
+      setError('Failed to create prompt');
+    }
+  };
+
   // Report Management Functions
   const downloadReport = async (reportId: string, sessionId: string) => {
     try {
@@ -1967,27 +2060,27 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-800">
-                  <span className="font-medium">Note:</span> These are the three core prompt types used by the system. You can edit their content, but new prompt types require developer implementation to define when and how they're used.
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <span className="font-medium">Lesson-Based System:</span> Configure the General Q&A prompt for open conversations, plus individual Q&A prompts for each lesson.
                 </p>
               </div>
               
-              <div className="space-y-6">
-                {['content', 'qa', 'report'].map((type) => {
-                  const prompt = prompts.find(p => p.type === type);
+              {/* General QA Prompt */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">General Q&A Prompt</h3>
+                {(() => {
+                  const prompt = prompts.find(p => p.type === 'qa' && !p.lessonId);
                   return (
-                    <div key={type} className="border border-gray-200 rounded-lg">
+                    <div className="border border-gray-200 rounded-lg">
                       <div className="p-4 border-b border-gray-200">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h3 className="text-lg font-medium text-gray-900 capitalize">
-                              {type} Prompt
-                            </h3>
+                            <h4 className="text-base font-medium text-gray-900">
+                              General Financial Conversations
+                            </h4>
                             <p className="text-sm text-gray-500 mt-1">
-                              {type === 'content' && 'Used for delivering educational content'}
-                              {type === 'qa' && 'Used for personalized responses and interactions'}
-                              {type === 'report' && 'Used for generating session summaries'}
+                              Used for introduction sessions and open financial discussions
                             </p>
                           </div>
                           {prompt && (
@@ -2097,14 +2190,304 @@ export default function AdminPanel() {
                         ) : (
                           <div className="text-center py-8 text-gray-500">
                             <Database className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                            <p className="text-lg mb-2">No {type} prompt found</p>
-                            <p className="text-sm">This prompt type should be created during database seeding. Run the seed endpoint if missing.</p>
+                            <p className="text-lg mb-2">No General Q&A prompt found</p>
+                            <p className="text-sm mb-4">Create a new prompt to enable this functionality.</p>
+                            <button
+                              onClick={() => createNewPrompt('qa')}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 mx-auto"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Create General Q&A Prompt
+                            </button>
                           </div>
                         )}
                       </div>
                     </div>
                   );
-                })}
+                })()}
+              </div>
+
+              {/* Report Prompt */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Prompt</h3>
+                {(() => {
+                  const prompt = prompts.find(p => p.type === 'report');
+                  return (
+                    <div className="border border-gray-200 rounded-lg">
+                      <div className="p-4 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-base font-medium text-gray-900">
+                              Session Summary Reports
+                            </h4>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Used for generating comprehensive session summaries and insights
+                            </p>
+                          </div>
+                          {prompt && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => previewSystemPrompt(prompt)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Open in new window"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingPrompt(prompt)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Edit prompt"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => exportSystemPrompt(prompt)}
+                                className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                title="Export as file"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        {prompt ? (
+                          editingPrompt?.id === prompt.id ? (
+                            // Edit Form
+                            <form onSubmit={updateSystemPrompt} className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Text File (optional - leave empty to keep current content)
+                                </label>
+                                <input
+                                  type="file"
+                                  name="file"
+                                  accept=".txt,.md"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <p className="mt-1 text-sm text-gray-500">
+                                  Upload a text file to replace the current report prompt content
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 p-4 rounded-md">
+                                <p className="text-sm font-medium text-gray-700 mb-2">Current content preview:</p>
+                                <pre className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                  {prompt.content.substring(0, 200)}
+                                  {prompt.content.length > 200 && '...'}
+                                </pre>
+                              </div>
+                              <div className="flex gap-3">
+                                <button
+                                  type="submit"
+                                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                >
+                                  <Save className="w-4 h-4" />
+                                  Save Changes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPrompt(null)}
+                                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            // Display Mode
+                            <div>
+                              <div className="grid md:grid-cols-2 gap-4 mb-3">
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">Content:</span> {prompt.content.length} characters
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  <span className="font-medium">Updated:</span> {new Date(prompt.updatedAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                              
+                              {/* Content Preview */}
+                              <div className="bg-gray-50 p-4 rounded-md">
+                                <div className="mb-2">
+                                  <p className="text-sm font-medium text-gray-700">Preview:</p>
+                                </div>
+                                <pre className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                  {prompt.content.substring(0, 300)}
+                                  {prompt.content.length > 300 && '...'}
+                                </pre>
+                                {prompt.content.length > 300 && (
+                                  <div className="mt-2 text-center">
+                                    <button
+                                      onClick={() => previewSystemPrompt(prompt)}
+                                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                    >
+                                      Click to view full content →
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Database className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                            <p className="text-lg mb-2">No Report prompt found</p>
+                            <p className="text-sm mb-4">Create a new prompt to enable session report generation.</p>
+                            <button
+                              onClick={() => createNewPrompt('report')}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 mx-auto"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Create Report Prompt
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Lesson-Specific Prompts */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Lesson Q&A Prompts</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Each lesson can have its own customized Q&A prompt. These prompts are combined with lesson context during Q&A sessions.
+                </p>
+                
+                {lessons.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Database className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg mb-2">No lessons found</p>
+                    <p className="text-sm">Create lessons first to manage lesson-specific prompts.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {lessons.map((lesson) => {
+                      const lessonPrompt = prompts.find(p => p.type === 'lesson_qa' && p.lessonId === lesson.id);
+                      return (
+                        <div key={lesson.id} className="border border-gray-200 rounded-lg">
+                          <div className="p-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-base font-medium text-gray-900">{lesson.title}</h4>
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Q&A prompt for this specific lesson
+                                </p>
+                              </div>
+                              {lessonPrompt ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => previewSystemPrompt(lessonPrompt)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    title="Open in new window"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingPrompt(lessonPrompt)}
+                                    className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                    title="Edit prompt"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => exportSystemPrompt(lessonPrompt)}
+                                    className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                    title="Export as file"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => createLessonPrompt(lesson.id)}
+                                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  Create Prompt
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            {lessonPrompt ? (
+                              editingPrompt?.id === lessonPrompt.id ? (
+                                // Edit Form for lesson prompt
+                                <form onSubmit={updateSystemPrompt} className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Text File (optional - leave empty to keep current content)
+                                    </label>
+                                    <input
+                                      type="file"
+                                      name="file"
+                                      accept=".txt,.md"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </div>
+                                  <div className="bg-gray-50 p-4 rounded-md">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Current content preview:</p>
+                                    <pre className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                      {lessonPrompt.content.substring(0, 200)}
+                                      {lessonPrompt.content.length > 200 && '...'}
+                                    </pre>
+                                  </div>
+                                  <div className="flex gap-3">
+                                    <button
+                                      type="submit"
+                                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                    >
+                                      <Save className="w-4 h-4" />
+                                      Save Changes
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingPrompt(null)}
+                                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </form>
+                              ) : (
+                                // Display Mode for lesson prompt
+                                <div>
+                                  <div className="grid md:grid-cols-2 gap-4 mb-3">
+                                    <div className="text-sm text-gray-600">
+                                      <span className="font-medium">Content:</span> {lessonPrompt.content.length} characters
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                      <span className="font-medium">Updated:</span> {new Date(lessonPrompt.updatedAt).toLocaleDateString()}
+                                    </div>
+                                  </div>
+                                  <div className="bg-green-50 rounded-md p-3">
+                                    <p className="text-sm font-medium text-green-700 mb-1">Content preview:</p>
+                                    <pre className="text-sm text-green-800 whitespace-pre-wrap leading-relaxed">
+                                      {lessonPrompt.content.substring(0, 200)}
+                                      {lessonPrompt.content.length > 200 && '...'}
+                                    </pre>
+                                  </div>
+                                </div>
+                              )
+                            ) : (
+                              <div className="text-center py-6 text-gray-500">
+                                <p className="text-sm mb-3">No custom prompt for this lesson. The general lesson Q&A prompt will be used.</p>
+                                <button
+                                  onClick={() => createLessonPrompt(lesson.id)}
+                                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 mx-auto"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  Create Custom Prompt
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

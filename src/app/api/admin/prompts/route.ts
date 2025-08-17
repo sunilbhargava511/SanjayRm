@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDatabase();
     
-    const { type, content } = await request.json();
+    const { type, content, lessonId } = await request.json();
     
     if (!type || !content) {
       return NextResponse.json(
@@ -43,14 +43,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['content', 'qa', 'report'].includes(type)) {
+    if (!['qa', 'lesson_qa', 'report'].includes(type)) {
       return NextResponse.json(
-        { success: false, error: 'Type must be one of: content, qa, report' },
+        { success: false, error: 'Type must be one of: qa, lesson_qa, report' },
         { status: 400 }
       );
     }
 
-    const newPrompt = await adminService.uploadSystemPrompt(type, content);
+    const newPrompt = await adminService.uploadSystemPrompt(type, content, lessonId);
     
     return NextResponse.json({
       success: true,
