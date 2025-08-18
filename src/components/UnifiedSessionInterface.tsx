@@ -111,6 +111,9 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
         })
       });
 
+      // Set auto-start flag for ConversationalAI component
+      localStorage.setItem('autoStartConversation', 'true');
+
       // Switch to conversation mode
       setCurrentMode('conversation');
       setShowConversationPanel(true);
@@ -224,6 +227,9 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
         ...prev,
         lessonPhase: 'qa_conversation'
       } : null);
+
+      // Set auto-start flag for ConversationalAI component (for Q&A after video)
+      localStorage.setItem('autoStartConversation', 'true');
 
       // Switch to conversation mode
       setCurrentMode('conversation');
