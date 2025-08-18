@@ -120,6 +120,35 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      case 'migrate_lesson_messages': {
+        // Migrate startMessage from lessons table to opening_messages
+        const lessons = await lessonService.getAllLessons();
+        let migratedCount = 0;
+        
+        for (const lesson of lessons) {
+          if (lesson.startMessage) {
+            // Check if intro message already exists for this lesson
+            const existing = await openingMessageService.getLessonIntroMessage(lesson.id);
+            
+            if (!existing) {
+              await openingMessageService.setLessonIntroMessage(
+                lesson.id,
+                lesson.startMessage,
+                openingMessageService.getDefaultVoiceSettings()
+              );
+              migratedCount++;
+            }
+          }
+        }
+        
+        return NextResponse.json({ 
+          success: true, 
+          description: `Migrated ${migratedCount} lesson intro messages`,
+          totalLessons: lessons.length,
+          migratedCount
+        });
+      }
+
       default:
         return NextResponse.json(
           { success: false, error: 'Unknown action' },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Bot,
   MessageSquare,
@@ -15,8 +15,10 @@ import {
   RotateCcw
 } from 'lucide-react';
 import ConversationPanel from './ConversationPanel';
-import VideoPlayer from './VideoPlayer';
+import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ConversationalAI from './ConversationalAI-Enhanced';
+import TTSPlayer from './TTSPlayer';
+import LessonProgressBar, { LessonPhase } from './LessonProgressBar';
 import { Lesson } from '@/types';
 
 interface UnifiedSessionInterfaceProps {
@@ -45,6 +47,14 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
+  
+  // Lesson phase tracking
+  const [lessonPhase, setLessonPhase] = useState<LessonPhase>('intro');
+  const [introCompleted, setIntroCompleted] = useState(false);
+  const [lessonIntroMessage, setLessonIntroMessage] = useState<string | null>(null);
+  
+  // Video player ref for TTS coordination
+  const videoPlayerRef = useRef<VideoPlayerRef>(null);
 
   // Load lessons on component mount
   useEffect(() => {
@@ -143,7 +153,7 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
       setCurrentLesson(lesson);
 
       // Add lesson intro message
-      await fetch('/api/session-transcript', {
+      const introResponse = await fetch('/api/session-transcript', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -154,9 +164,23 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
         })
       });
 
+      if (introResponse.ok) {
+        const introData = await introResponse.json();
+        // Use the opening message from the API response, or fallback to lesson's startMessage
+        const introMessage = introData.openingMessage || lesson.startMessage;
+        setLessonIntroMessage(introMessage);
+      } else {
+        // Fallback to lesson's startMessage if API fails
+        setLessonIntroMessage(lesson.startMessage || 'Welcome to this lesson. Let\'s begin!');
+      }
+
+      // Reset lesson progress states
+      setLessonPhase('intro');
+      setIntroCompleted(false);
+      setIsVideoCompleted(false);
+
       // Switch to video mode
       setCurrentMode('video');
-      setIsVideoCompleted(false);
       setShowConversationPanel(true);
 
     } catch (error) {
@@ -173,6 +197,7 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
 
     try {
       setIsVideoCompleted(true);
+      setLessonPhase('qa');
 
       // Start lesson Q&A
       const response = await fetch('/api/session-transcript', {
@@ -224,6 +249,17 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
   const handleConversationError = useCallback((errorMessage: string) => {
     setError(errorMessage);
     console.error('Conversation Error:', errorMessage);
+  }, []);
+
+  // Handle TTS intro completion
+  const handleTTSComplete = useCallback(() => {
+    setIntroCompleted(true);
+    setLessonPhase('video');
+    
+    // Notify video player that TTS is complete
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.handleTTSComplete();
+    }
   }, []);
 
   // End current session
@@ -375,24 +411,69 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
 
       case 'video':
         return (
-          <div className="flex-1 flex items-center justify-center p-6">
-            <div className="max-w-4xl w-full">
-              <div className="mb-6 text-center">
+          <div className="flex-1 flex flex-col p-6">
+            <div className="max-w-5xl w-full mx-auto">
+              {/* Lesson Progress Bar */}
+              <LessonProgressBar
+                currentPhase={lessonPhase}
+                introCompleted={introCompleted}
+                videoCompleted={isVideoCompleted}
+                videoDuration={300} // TODO: Get actual video duration
+                introDuration={45} // Approximate TTS duration
+                className="mb-6"
+              />
+
+              <div className="mb-4 text-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   {currentLesson?.title}
                 </h2>
                 <p className="text-gray-600">
-                  Watch the lesson video, then we'll discuss what you learned
+                  {lessonPhase === 'intro' && 'Listen to the introduction to understand what you\'ll learn'}
+                  {lessonPhase === 'video' && 'Watch the lesson video carefully'}
+                  {lessonPhase === 'qa' && 'Ready to discuss what you learned!'}
                 </p>
               </div>
+
+              {/* TTS Player for Introduction */}
+              {lessonPhase === 'intro' && lessonIntroMessage && (
+                <div className="mb-6">
+                  <TTSPlayer
+                    text={lessonIntroMessage}
+                    autoPlay={true}
+                    onComplete={handleTTSComplete}
+                    onError={(error) => {
+                      console.error('TTS Error:', error);
+                      // Still allow progression to video even if TTS fails
+                      handleTTSComplete();
+                    }}
+                    className="mb-4"
+                  />
+                  
+                  {/* Skip button for intro */}
+                  <div className="text-center">
+                    <button
+                      onClick={handleTTSComplete}
+                      className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Skip introduction and go to video
+                    </button>
+                  </div>
+                </div>
+              )}
               
+              {/* Video Player */}
               {currentLesson && (
-                <VideoPlayer
-                  videoUrl={currentLesson.videoUrl}
-                  title={currentLesson.title}
-                  onVideoEnd={handleVideoEnd}
-                  className="w-full"
-                />
+                <div className={lessonPhase === 'intro' ? 'opacity-50 pointer-events-none' : ''}>
+                  <VideoPlayer
+                    ref={videoPlayerRef}
+                    videoUrl={currentLesson.videoUrl}
+                    title={currentLesson.title}
+                    onVideoEnd={handleVideoEnd}
+                    autoPlay={true}
+                    waitForTTS={true}
+                    className="w-full"
+                  />
+                </div>
               )}
               
               <div className="mt-6 flex justify-center gap-4">
@@ -402,7 +483,7 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
                     className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                   >
                     <ArrowRight className="w-5 h-5" />
-                    Continue to Q&A
+                    Continue to Q&A Discussion
                   </button>
                 )}
                 <button
