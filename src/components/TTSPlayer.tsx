@@ -20,6 +20,13 @@ export default function TTSPlayer({
   onError,
   className = ''
 }: TTSPlayerProps) {
+  
+  // Debug logging - log props on every render
+  console.log('[TTSPlayer] Render with props:', {
+    textLength: text?.length || 0,
+    audioUrl: audioUrl,
+    autoPlay: autoPlay
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +36,14 @@ export default function TTSPlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Generate ElevenLabs TTS audio
   const generateElevenLabsAudio = async () => {
-    if (!text) return;
+    if (!text || isGenerating) return;
 
     setIsLoading(true);
+    setIsGenerating(true);
     setError(null);
 
     try {
@@ -66,6 +75,7 @@ export default function TTSPlayer({
       
       console.log('[TTSPlayer] ElevenLabs TTS generated successfully');
       setGeneratedAudioUrl(audioUrl);
+      setIsGenerating(false);
       
       // Create audio element and play
       const audio = new Audio(audioUrl);
@@ -116,20 +126,25 @@ export default function TTSPlayer({
       const errorMsg = 'Failed to generate TTS audio';
       setError(errorMsg);
       setIsLoading(false);
+      setIsGenerating(false);
       onError?.(errorMsg);
     }
   };
 
-  // Generate ElevenLabs TTS audio when text changes
+  // Generate ElevenLabs audio if no cached audio is available and autoplay is requested
   useEffect(() => {
-    if (!audioUrl && text && autoPlay) {
+    console.log('[TTSPlayer] Checking for ElevenLabs generation need - audioUrl:', audioUrl, 'autoPlay:', autoPlay, 'text:', text?.substring(0, 50) + '...');
+    
+    if (!audioUrl && autoPlay && text) {
+      console.log('[TTSPlayer] No cached audio available, generating ElevenLabs TTS');
       generateElevenLabsAudio();
     }
-  }, [text, autoPlay]);
+  }, [text, autoPlay, audioUrl]);
 
   // Initialize audio when audioUrl changes
   useEffect(() => {
     if (audioUrl) {
+      console.log('[TTSPlayer] Using cached audio URL:', audioUrl);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
 
@@ -147,19 +162,31 @@ export default function TTSPlayer({
         onComplete?.();
       });
 
-      audio.addEventListener('error', () => {
-        const errorMsg = 'Audio playback failed';
+      audio.addEventListener('error', (e) => {
+        console.error('[TTSPlayer] Cached audio failed to load:', e);
+        const errorMsg = 'Cached audio failed to load';
         setError(errorMsg);
         setIsLoading(false);
         setIsPlaying(false);
-        onError?.(errorMsg);
+        
+        // Fallback to ElevenLabs if cached audio fails
+        if (autoPlay && text) {
+          console.log('[TTSPlayer] Falling back to ElevenLabs due to cached audio error');
+          generateElevenLabsAudio();
+        } else {
+          onError?.(errorMsg);
+        }
       });
 
       // Auto-play if requested
       if (autoPlay) {
-        console.log('[TTSPlayer] Auto-play triggered for text:', text.substring(0, 50) + '...');
+        console.log('[TTSPlayer] Auto-play triggered for cached audio URL:', audioUrl?.substring(0, 50) + '...');
         setIsLoading(true);
-        handlePlay();
+        
+        // Add a small delay to ensure audio is loaded
+        setTimeout(() => {
+          handlePlay();
+        }, 100);
       }
 
       return () => {
@@ -215,9 +242,13 @@ export default function TTSPlayer({
 
     try {
       setIsLoading(true);
+      console.log('[TTSPlayer] Attempting to play audio:', audioRef.current?.src?.substring(0, 50) + '...');
+      
       await audioRef.current.play();
       setIsPlaying(true);
       setError(null);
+      
+      console.log('[TTSPlayer] Audio playback started successfully');
       
       // Start progress tracking
       intervalRef.current = setInterval(() => {
@@ -228,7 +259,19 @@ export default function TTSPlayer({
         }
       }, 100);
     } catch (err) {
-      const errorMsg = 'Failed to play audio';
+      console.error('[TTSPlayer] Audio playback failed:', err);
+      let errorMsg = 'Failed to play audio';
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMsg = 'Audio playback blocked by browser. Please click to play.';
+        } else if (err.name === 'NotSupportedError') {
+          errorMsg = 'Audio format not supported by browser';
+        } else {
+          errorMsg = `Audio error: ${err.message}`;
+        }
+      }
+      
       setError(errorMsg);
       onError?.(errorMsg);
     } finally {

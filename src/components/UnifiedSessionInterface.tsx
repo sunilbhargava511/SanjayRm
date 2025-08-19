@@ -17,7 +17,7 @@ import {
 import ConversationPanel from './ConversationPanel';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ConversationalAI from './ConversationalAI-Enhanced';
-import TTSPlayer from './TTSPlayer';
+import AudioPlayer from './AudioPlayer';
 import LessonProgressBar, { LessonPhase } from './LessonProgressBar';
 import { Lesson } from '@/types';
 

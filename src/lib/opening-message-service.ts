@@ -1,6 +1,7 @@
 import { db } from './database';
 import * as schema from './database/schema';
 import { eq, and } from 'drizzle-orm';
+import { audioCacheService, AudioGenerationOptions } from './audio-cache-service';
 
 export interface VoiceSettings {
   voiceId: string;
@@ -16,11 +17,17 @@ export interface CreateOpeningMessageData {
   lessonId?: string;
   messageContent: string;
   voiceSettings?: VoiceSettings;
+  generateAudio?: boolean; // Whether to auto-generate audio
+}
+
+export interface OpeningMessageWithAudio extends schema.OpeningMessage {
+  cachedAudioUrl?: string | null;
+  needsAudioRegeneration?: boolean;
 }
 
 export class OpeningMessageService {
-  // Get general opening message
-  async getGeneralOpeningMessage(): Promise<schema.OpeningMessage | null> {
+  // Get general opening message with audio cache
+  async getGeneralOpeningMessage(): Promise<OpeningMessageWithAudio | null> {
     const messages = await db.select()
       .from(schema.openingMessages)
       .where(
@@ -31,11 +38,14 @@ export class OpeningMessageService {
       )
       .limit(1);
     
-    return messages.length > 0 ? messages[0] : null;
+    if (messages.length === 0) return null;
+    
+    const message = messages[0];
+    return this.enrichWithAudioCache(message);
   }
 
-  // Get lesson intro message
-  async getLessonIntroMessage(lessonId: string): Promise<schema.OpeningMessage | null> {
+  // Get lesson intro message with audio cache
+  async getLessonIntroMessage(lessonId: string): Promise<OpeningMessageWithAudio | null> {
     const messages = await db.select()
       .from(schema.openingMessages)
       .where(
@@ -47,11 +57,18 @@ export class OpeningMessageService {
       )
       .limit(1);
     
-    return messages.length > 0 ? messages[0] : null;
+    if (messages.length === 0) return null;
+    
+    const message = messages[0];
+    return this.enrichWithAudioCache(message);
   }
 
-  // Create or update general opening message
-  async setGeneralOpeningMessage(messageContent: string, voiceSettings?: VoiceSettings): Promise<schema.OpeningMessage> {
+  // Create or update general opening message with audio generation
+  async setGeneralOpeningMessage(
+    messageContent: string, 
+    voiceSettings?: VoiceSettings, 
+    generateAudio: boolean = true
+  ): Promise<OpeningMessageWithAudio> {
     // First, deactivate existing general opening messages
     await db.update(schema.openingMessages)
       .set({ active: false })
@@ -70,6 +87,20 @@ export class OpeningMessageService {
 
     await db.insert(schema.openingMessages).values(newMessage);
     
+    // Generate audio if requested
+    if (generateAudio) {
+      try {
+        await audioCacheService.generateAndCacheAudio(
+          messageId,
+          messageContent,
+          voiceSettings
+        );
+      } catch (error) {
+        console.error('[OpeningMessage] Failed to generate audio for general message:', error);
+        // Don't fail the entire operation if audio generation fails
+      }
+    }
+    
     const created = await db.select()
       .from(schema.openingMessages)
       .where(eq(schema.openingMessages.id, messageId))
@@ -79,11 +110,16 @@ export class OpeningMessageService {
       throw new Error('Failed to create general opening message');
     }
     
-    return created[0];
+    return this.enrichWithAudioCache(created[0]);
   }
 
-  // Create or update lesson intro message
-  async setLessonIntroMessage(lessonId: string, messageContent: string, voiceSettings?: VoiceSettings): Promise<schema.OpeningMessage> {
+  // Create or update lesson intro message with audio generation
+  async setLessonIntroMessage(
+    lessonId: string, 
+    messageContent: string, 
+    voiceSettings?: VoiceSettings,
+    generateAudio: boolean = true
+  ): Promise<OpeningMessageWithAudio> {
     // First, deactivate existing lesson intro messages for this lesson
     await db.update(schema.openingMessages)
       .set({ active: false })
@@ -108,6 +144,20 @@ export class OpeningMessageService {
 
     await db.insert(schema.openingMessages).values(newMessage);
     
+    // Generate audio if requested
+    if (generateAudio) {
+      try {
+        await audioCacheService.generateAndCacheAudio(
+          messageId,
+          messageContent,
+          voiceSettings
+        );
+      } catch (error) {
+        console.error(`[OpeningMessage] Failed to generate audio for lesson ${lessonId}:`, error);
+        // Don't fail the entire operation if audio generation fails
+      }
+    }
+    
     const created = await db.select()
       .from(schema.openingMessages)
       .where(eq(schema.openingMessages.id, messageId))
@@ -117,7 +167,7 @@ export class OpeningMessageService {
       throw new Error('Failed to create lesson intro message');
     }
     
-    return created[0];
+    return this.enrichWithAudioCache(created[0]);
   }
 
   // Get all lesson intro messages
@@ -195,6 +245,91 @@ export class OpeningMessageService {
         updatedAt: new Date().toISOString()
       })
       .where(eq(schema.openingMessages.id, messageId));
+  }
+
+  // Audio cache management methods
+
+  // Enrich message with audio cache information
+  private async enrichWithAudioCache(message: schema.OpeningMessage): Promise<OpeningMessageWithAudio> {
+    const cachedAudio = await audioCacheService.getCachedAudio(message.id);
+    
+    let cachedAudioUrl: string | null = null;
+    if (cachedAudio?.audioBlob) {
+      // Use API endpoint to serve cached audio instead of data URL
+      cachedAudioUrl = `/api/cached-audio/${message.id}`;
+    }
+    
+    return {
+      ...message,
+      cachedAudioUrl,
+      needsAudioRegeneration: cachedAudio?.needsRegeneration ?? true
+    };
+  }
+
+  // Force regenerate audio for a message
+  async regenerateAudio(messageId: string): Promise<void> {
+    const message = await db.select()
+      .from(schema.openingMessages)
+      .where(eq(schema.openingMessages.id, messageId))
+      .limit(1);
+    
+    if (message.length === 0) {
+      throw new Error('Message not found');
+    }
+    
+    const msg = message[0];
+    const voiceSettings = msg.voiceSettings ? JSON.parse(msg.voiceSettings) : null;
+    
+    await audioCacheService.generateAndCacheAudio(
+      messageId,
+      msg.messageContent,
+      voiceSettings
+    );
+  }
+
+  // Get audio cache statistics
+  async getAudioCacheStats(): Promise<{
+    totalMessages: number;
+    cachedMessages: number;
+    cacheHitRate: number;
+    totalCacheSize: number;
+  }> {
+    const stats = await audioCacheService.getStatistics();
+    
+    return {
+      totalMessages: stats.totalMessages,
+      cachedMessages: stats.cachedMessages,
+      cacheHitRate: stats.totalMessages > 0 ? (stats.cachedMessages / stats.totalMessages) * 100 : 0,
+      totalCacheSize: stats.totalCacheSize
+    };
+  }
+
+  // Regenerate all audio
+  async regenerateAllAudio(): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+  }> {
+    return await audioCacheService.regenerateAllAudio();
+  }
+
+  // Check if message needs audio regeneration
+  async needsAudioRegeneration(messageId: string): Promise<boolean> {
+    const message = await db.select()
+      .from(schema.openingMessages)
+      .where(eq(schema.openingMessages.id, messageId))
+      .limit(1);
+    
+    if (message.length === 0) return true;
+    
+    const msg = message[0];
+    const voiceSettings = msg.voiceSettings ? JSON.parse(msg.voiceSettings) : null;
+    
+    return await audioCacheService.needsRegeneration(
+      messageId,
+      msg.messageContent,
+      voiceSettings
+    );
   }
 }
 

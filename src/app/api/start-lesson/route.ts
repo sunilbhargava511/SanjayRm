@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lessonService } from '@/lib/lesson-service';
+import { openingMessageService } from '@/lib/opening-message-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,12 +43,29 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // If lesson has a start message, prepare it for TTS (audio generation will be handled client-side)
+    // If lesson has a start message, get cached audio URL from opening message service
     if (lesson.startMessage) {
-      response.startMessage = {
-        text: lesson.startMessage,
-        audioUrl: null // Audio generation will be handled by TTSPlayer component
-      };
+      try {
+        const openingMessage = await openingMessageService.getLessonIntroMessage(lessonId);
+        
+        response.startMessage = {
+          text: lesson.startMessage,
+          audioUrl: openingMessage?.cachedAudioUrl || null
+        };
+        
+        console.log('[StartLesson] Lesson start message prepared:', {
+          lessonId,
+          hasAudio: !!openingMessage?.cachedAudioUrl,
+          audioUrl: openingMessage?.cachedAudioUrl
+        });
+      } catch (error) {
+        console.error('[StartLesson] Failed to get cached audio:', error);
+        // Fallback to no audio if cache lookup fails
+        response.startMessage = {
+          text: lesson.startMessage,
+          audioUrl: null
+        };
+      }
     }
 
     return NextResponse.json(response);

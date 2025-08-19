@@ -34,7 +34,7 @@ import ConversationPanel from './ConversationPanel';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ConversationalAI from './ConversationalAI-Enhanced';
 import AppHeader from './AppHeader';
-import TTSPlayer from './TTSPlayer';
+import AudioPlayer from './AudioPlayer';
 import { Lesson } from '@/types';
 
 interface SessionData {
@@ -64,6 +64,7 @@ export default function EnhancedUnifiedSessionInterface() {
   const [lessonPhase, setLessonPhase] = useState<'intro' | 'video' | 'qa'>('intro');
   const [introCompleted, setIntroCompleted] = useState(false);
   const [lessonIntroMessage, setLessonIntroMessage] = useState<string | null>(null);
+  const [lessonIntroAudioUrl, setLessonIntroAudioUrl] = useState<string | null>(null);
   
   // Video player ref for TTS coordination
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
@@ -190,21 +191,37 @@ export default function EnhancedUnifiedSessionInterface() {
       setCurrentSession(data.session);
       setCurrentLesson(lesson);
 
-      // Fetch lesson intro message for TTS
+      // Fetch lesson intro message and cached audio for TTS
       console.log('[EnhancedUnified] Fetching opening message for lesson:', lesson.id);
       const introResponse = await fetch(`/api/opening-messages/lesson/${lesson.id}`);
       
       if (introResponse.ok) {
         const introData = await introResponse.json();
-        const introMessage = introData.openingMessage || lesson.startMessage;
-        console.log('[EnhancedUnified] Setting lesson intro message:', introMessage?.substring(0, 100) + '...');
-        setLessonIntroMessage(introMessage);
+        const openingMessageData = introData.openingMessageData;
+        
+        if (openingMessageData) {
+          const introMessage = openingMessageData.messageContent;
+          const cachedAudioUrl = openingMessageData.cachedAudioUrl;
+          
+          console.log('[EnhancedUnified] Setting lesson intro message:', introMessage?.substring(0, 100) + '...');
+          console.log('[EnhancedUnified] Cached audio URL:', cachedAudioUrl);
+          
+          setLessonIntroMessage(introMessage);
+          setLessonIntroAudioUrl(cachedAudioUrl);
+        } else {
+          // Fallback to lesson's startMessage if no opening message configured
+          const fallbackMessage = lesson.startMessage || 'Welcome to this lesson. Let\'s begin!';
+          console.log('[EnhancedUnified] Using lesson startMessage fallback:', fallbackMessage?.substring(0, 100) + '...');
+          setLessonIntroMessage(fallbackMessage);
+          setLessonIntroAudioUrl(null);
+        }
       } else {
         console.error('[EnhancedUnified] Opening message API failed:', introResponse.status, introResponse.statusText);
         // Fallback to lesson's startMessage if API fails
         const fallbackMessage = lesson.startMessage || 'Welcome to this lesson. Let\'s begin!';
         console.log('[EnhancedUnified] Using fallback intro message:', fallbackMessage?.substring(0, 100) + '...');
         setLessonIntroMessage(fallbackMessage);
+        setLessonIntroAudioUrl(null);
       }
 
       // Add lesson intro message to transcript
@@ -746,18 +763,20 @@ export default function EnhancedUnifiedSessionInterface() {
               
               {currentLesson && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/20">
-                  {/* TTS Player for Introduction */}
+                  {/* Audio Player for Introduction */}
                   {lessonPhase === 'intro' && lessonIntroMessage && (
                     <div className="mb-6">
-                      <TTSPlayer
-                        text={lessonIntroMessage}
+                      {console.log('[EnhancedUnified] Rendering AudioPlayer with audioUrl:', lessonIntroAudioUrl)}
+                      <AudioPlayer
+                        audioUrl={lessonIntroAudioUrl}
                         autoPlay={true}
                         onComplete={handleTTSComplete}
                         onError={(error) => {
-                          console.error('TTS Error:', error);
-                          // Still allow progression to video even if TTS fails
+                          console.error('Audio Error:', error);
+                          // Still allow progression to video even if audio fails
                           handleTTSComplete();
                         }}
+                        title="Lesson Introduction"
                         className="mb-4"
                       />
                       

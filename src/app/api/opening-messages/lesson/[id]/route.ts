@@ -35,7 +35,8 @@ export async function GET(
     if (openingMessage) {
       return NextResponse.json({
         success: true,
-        openingMessage: openingMessage.messageContent,
+        openingMessage: openingMessage.messageContent, // Legacy field for backward compatibility
+        openingMessageData: openingMessage, // Full object with cached audio
         voiceSettings: openingMessage.voiceSettings
       });
     }
@@ -47,14 +48,25 @@ export async function GET(
       return NextResponse.json({
         success: true,
         openingMessage: lesson.startMessage,
+        openingMessageData: {
+          messageContent: lesson.startMessage,
+          cachedAudioUrl: null,
+          needsAudioRegeneration: true
+        },
         voiceSettings: null // No specific voice settings for fallback
       });
     }
 
     // No message found - return default
+    const defaultMessage = "Welcome to this lesson! Let's begin our journey towards better financial understanding.";
     return NextResponse.json({
       success: true,
-      openingMessage: "Welcome to this lesson! Let's begin our journey towards better financial understanding.",
+      openingMessage: defaultMessage,
+      openingMessageData: {
+        messageContent: defaultMessage,
+        cachedAudioUrl: null,
+        needsAudioRegeneration: true
+      },
       voiceSettings: null
     });
 

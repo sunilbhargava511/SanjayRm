@@ -159,8 +159,30 @@ export const openingMessages = sqliteTable('opening_messages', {
   messageContent: text('message_content').notNull(), // The TTS message text
   voiceSettings: text('voice_settings'), // JSON: voice_id, speed, etc.
   active: integer('active', { mode: 'boolean' }).default(true),
+  // Audio cache fields
+  audioUrl: text('audio_url'), // URL to cached audio file
+  audioBlob: text('audio_blob'), // Base64 encoded audio data
+  audioGeneratedAt: text('audio_generated_at'), // When audio was generated
+  audioHash: text('audio_hash'), // Hash of content + voice settings
+  audioDuration: real('audio_duration'), // Duration in seconds
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Audio cache table for additional storage
+export const audioCache = sqliteTable('audio_cache', {
+  id: text('id').primaryKey(),
+  messageId: text('message_id').notNull().references(() => openingMessages.id, { onDelete: 'cascade' }),
+  audioData: text('audio_data').notNull(), // Base64 encoded audio
+  filePath: text('file_path'), // Optional file system path
+  mimeType: text('mime_type').default('audio/mpeg'),
+  sizeBytes: integer('size_bytes'),
+  durationSeconds: real('duration_seconds'),
+  voiceId: text('voice_id'),
+  voiceSettings: text('voice_settings'), // JSON
+  generatedAt: text('generated_at').default(sql`(CURRENT_TIMESTAMP)`),
+  accessedAt: text('accessed_at').default(sql`(CURRENT_TIMESTAMP)`),
+  accessCount: integer('access_count').default(0),
 });
 
 // Export types for TypeScript
@@ -202,3 +224,6 @@ export type NewConversationMessage = typeof conversationMessages.$inferInsert;
 
 export type OpeningMessage = typeof openingMessages.$inferSelect;
 export type NewOpeningMessage = typeof openingMessages.$inferInsert;
+
+export type AudioCache = typeof audioCache.$inferSelect;
+export type NewAudioCache = typeof audioCache.$inferInsert;

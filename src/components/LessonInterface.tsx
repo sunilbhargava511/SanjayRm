@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, BookOpen, MessageCircle, Play } from 'lucide-react';
-import TTSPlayer from './TTSPlayer';
+import AudioPlayer from './AudioPlayer';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import { Lesson } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
@@ -82,11 +82,11 @@ export default function LessonInterface({
     loadLesson();
   }, [lessonId, sessionId]);
 
-  // Handle TTS completion
-  const handleTTSComplete = () => {
+  // Handle audio completion
+  const handleAudioComplete = () => {
     setPhase('video');
     EnhancedSessionStorage.setLessonState(sessionId, lessonId, 'video');
-    // Notify video player that TTS is complete
+    // Notify video player that audio is complete
     videoPlayerRef.current?.handleTTSComplete();
   };
 
@@ -230,16 +230,16 @@ export default function LessonInterface({
               Listen to this introduction before watching the video content.
             </p>
             
-            <TTSPlayer
-              text={lessonData.startMessage.text}
+            <AudioPlayer
               audioUrl={lessonData.startMessage.audioUrl}
               autoPlay={true}
-              onComplete={handleTTSComplete}
+              onComplete={handleAudioComplete}
               onError={(error) => {
-                console.error('TTS Error:', error);
-                // Continue to video even if TTS fails
-                handleTTSComplete();
+                console.error('Audio Error:', error);
+                // Continue to video even if audio fails
+                handleAudioComplete();
               }}
+              title="Lesson Introduction"
               className="mb-4"
             />
             
