@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Bot,
   MessageSquare,
@@ -22,6 +22,7 @@ import {
   Users,
   Target,
   ChevronRight,
+  ChevronLeft,
   PlayCircle,
   PauseCircle,
   Volume2,
@@ -30,8 +31,10 @@ import {
   CheckCircle
 } from 'lucide-react';
 import ConversationPanel from './ConversationPanel';
-import VideoPlayer from './VideoPlayer';
+import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ConversationalAI from './ConversationalAI-Enhanced';
+import AppHeader from './AppHeader';
+import TTSPlayer from './TTSPlayer';
 import { Lesson } from '@/types';
 
 interface SessionData {
@@ -56,6 +59,14 @@ export default function EnhancedUnifiedSessionInterface() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isVideoCompleted, setIsVideoCompleted] = useState(false);
+  
+  // Lesson intro TTS state
+  const [lessonPhase, setLessonPhase] = useState<'intro' | 'video' | 'qa'>('intro');
+  const [introCompleted, setIntroCompleted] = useState(false);
+  const [lessonIntroMessage, setLessonIntroMessage] = useState<string | null>(null);
+  
+  // Video player ref for TTS coordination
+  const videoPlayerRef = useRef<VideoPlayerRef>(null);
   const [showGettingStarted, setShowGettingStarted] = useState(false);
   const [userStats, setUserStats] = useState({ 
     totalSessions: 12, 
@@ -129,7 +140,8 @@ export default function EnhancedUnifiedSessionInterface() {
 
       // Switch to conversation mode
       setCurrentMode('conversation');
-      setShowConversationPanel(true);
+      // Start with transcript panel collapsed
+      setShowConversationPanel(false);
 
     } catch (error) {
       console.error('Error starting open-ended session:', error);
@@ -138,6 +150,17 @@ export default function EnhancedUnifiedSessionInterface() {
       setIsInitializing(false);
     }
   };
+
+  // Handle TTS intro completion
+  const handleTTSComplete = useCallback(() => {
+    setIntroCompleted(true);
+    setLessonPhase('video');
+    
+    // Notify video player that TTS is complete
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.handleTTSComplete();
+    }
+  }, []);
 
   // Start lesson-based session
   const handleStartLessonSession = async (lesson: Lesson) => {
@@ -167,7 +190,24 @@ export default function EnhancedUnifiedSessionInterface() {
       setCurrentSession(data.session);
       setCurrentLesson(lesson);
 
-      // Add lesson intro message
+      // Fetch lesson intro message for TTS
+      console.log('[EnhancedUnified] Fetching opening message for lesson:', lesson.id);
+      const introResponse = await fetch(`/api/opening-messages/lesson/${lesson.id}`);
+      
+      if (introResponse.ok) {
+        const introData = await introResponse.json();
+        const introMessage = introData.openingMessage || lesson.startMessage;
+        console.log('[EnhancedUnified] Setting lesson intro message:', introMessage?.substring(0, 100) + '...');
+        setLessonIntroMessage(introMessage);
+      } else {
+        console.error('[EnhancedUnified] Opening message API failed:', introResponse.status, introResponse.statusText);
+        // Fallback to lesson's startMessage if API fails
+        const fallbackMessage = lesson.startMessage || 'Welcome to this lesson. Let\'s begin!';
+        console.log('[EnhancedUnified] Using fallback intro message:', fallbackMessage?.substring(0, 100) + '...');
+        setLessonIntroMessage(fallbackMessage);
+      }
+
+      // Add lesson intro message to transcript
       await fetch('/api/session-transcript', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -179,10 +219,15 @@ export default function EnhancedUnifiedSessionInterface() {
         })
       });
 
+      // Reset lesson progress states
+      setLessonPhase('intro');
+      setIntroCompleted(false);
+      setIsVideoCompleted(false);
+
       // Switch to video mode
       setCurrentMode('video');
-      setIsVideoCompleted(false);
-      setShowConversationPanel(true);
+      // Start with transcript panel collapsed
+      setShowConversationPanel(false);
 
     } catch (error) {
       console.error('Error starting lesson session:', error);
@@ -317,15 +362,7 @@ export default function EnhancedUnifiedSessionInterface() {
               <div className="relative max-w-7xl mx-auto px-6 py-16">
                 {/* Navigation */}
                 <nav className="flex items-center justify-between mb-16">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-xl font-bold text-gray-900">Sanjay AI</h1>
-                      <p className="text-sm text-gray-600">Financial Advisor</p>
-                    </div>
-                  </div>
+                  <AppHeader />
                   
                   <div className="flex items-center gap-4">
                     <button
@@ -382,6 +419,65 @@ export default function EnhancedUnifiedSessionInterface() {
                       </div>
                       <div className="text-sm text-gray-600">Day Streak</div>
                     </div>
+                  </div>
+                </div>
+
+                {/* TTS Test Button - Prominent Location */}
+                <div className="max-w-md mx-auto mb-8">
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6 text-center">
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-3">🔊 TTS Test</h3>
+                    <button
+                      onClick={async () => {
+                        console.log('ElevenLabs TTS Test button clicked');
+                        try {
+                          const response = await fetch('/api/elevenlabs-tts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              text: 'Hello! This is a test of ElevenLabs text to speech. Can you hear me?',
+                              voiceSettings: {
+                                voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+                                stability: 0.6,
+                                similarity_boost: 0.8,
+                                style: 0.4,
+                                use_speaker_boost: true
+                              }
+                            })
+                          });
+                          
+                          if (!response.ok) {
+                            throw new Error(`TTS failed: ${response.status}`);
+                          }
+                          
+                          const audioBlob = await response.blob();
+                          const audioUrl = URL.createObjectURL(audioBlob);
+                          const audio = new Audio(audioUrl);
+                          
+                          audio.onended = () => {
+                            URL.revokeObjectURL(audioUrl);
+                            console.log('ElevenLabs TTS test completed');
+                          };
+                          
+                          audio.onerror = (e) => {
+                            console.error('Audio playback error:', e);
+                            URL.revokeObjectURL(audioUrl);
+                          };
+                          
+                          await audio.play();
+                          console.log('ElevenLabs TTS test started');
+                          
+                        } catch (error) {
+                          console.error('ElevenLabs TTS test failed:', error);
+                          alert('ElevenLabs TTS test failed: ' + error.message);
+                        }
+                      }}
+                      className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                    >
+                      🎤 Test ElevenLabs TTS
+                    </button>
+                    <p className="text-sm text-yellow-600 mt-3">
+                      Click to test if ElevenLabs text-to-speech works
+                    </p>
                   </div>
                 </div>
 
@@ -505,6 +601,32 @@ export default function EnhancedUnifiedSessionInterface() {
                           <p>{tip}</p>
                         </div>
                       ))}
+                      
+                      {/* TTS Test for Debugging */}
+                      <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                        <h4 className="font-semibold text-yellow-800 mb-2">🔊 TTS Test</h4>
+                        <button
+                          onClick={() => {
+                            console.log('TTS Test button clicked');
+                            if ('speechSynthesis' in window) {
+                              const utterance = new SpeechSynthesisUtterance('Hello! This is a test of text to speech. Can you hear me?');
+                              utterance.rate = 0.9;
+                              utterance.onstart = () => console.log('TTS started');
+                              utterance.onend = () => console.log('TTS ended');
+                              utterance.onerror = (e) => console.error('TTS error:', e);
+                              window.speechSynthesis.speak(utterance);
+                            } else {
+                              alert('Speech synthesis not supported');
+                            }
+                          }}
+                          className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+                        >
+                          🎤 Test Browser TTS
+                        </button>
+                        <p className="text-sm text-yellow-600 mt-2">
+                          Click to test if text-to-speech works in your browser
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -517,7 +639,9 @@ export default function EnhancedUnifiedSessionInterface() {
         return (
           <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 p-6">
             <div className="max-w-6xl mx-auto">
+              {/* Header */}
               <div className="mb-8">
+                <AppHeader onClick={() => setCurrentMode('session_select')} className="mb-6" />
                 <button
                   onClick={() => setCurrentMode('session_select')}
                   className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
@@ -602,6 +726,9 @@ export default function EnhancedUnifiedSessionInterface() {
         return (
           <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 p-6">
             <div className="max-w-4xl mx-auto">
+              {/* Header */}
+              <AppHeader onClick={() => setCurrentMode('session_select')} className="mb-6" />
+              
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
@@ -616,10 +743,39 @@ export default function EnhancedUnifiedSessionInterface() {
               
               {currentLesson && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/20">
+                  {/* TTS Player for Introduction */}
+                  {lessonPhase === 'intro' && lessonIntroMessage && (
+                    <div className="mb-6">
+                      <TTSPlayer
+                        text={lessonIntroMessage}
+                        autoPlay={true}
+                        onComplete={handleTTSComplete}
+                        onError={(error) => {
+                          console.error('TTS Error:', error);
+                          // Still allow progression to video even if TTS fails
+                          handleTTSComplete();
+                        }}
+                        className="mb-4"
+                      />
+                      
+                      {/* Skip button for intro */}
+                      <div className="text-center">
+                        <button
+                          onClick={handleTTSComplete}
+                          className="text-sm text-gray-500 hover:text-gray-700 underline"
+                        >
+                          Skip introduction and go to video
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <VideoPlayer
+                    ref={videoPlayerRef}
                     videoUrl={currentLesson.videoUrl}
                     title={currentLesson.title}
                     onVideoEnd={handleVideoEnd}
+                    waitForTTS={lessonPhase === 'intro'}
                     className="w-full mb-6"
                   />
                   
@@ -664,9 +820,8 @@ export default function EnhancedUnifiedSessionInterface() {
             <div className="bg-white/90 backdrop-blur-sm p-4 border-b border-gray-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                    <Bot className="w-6 h-6 text-white" />
-                  </div>
+                  <AppHeader onClick={() => setCurrentMode('session_select')} />
+                  <div className="w-px h-8 bg-gray-300"></div>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
                       {currentSession?.sessionType === 'lesson_based' && currentLesson ? 
@@ -674,7 +829,7 @@ export default function EnhancedUnifiedSessionInterface() {
                         'Financial Conversation with Sanjay'
                       }
                     </h2>
-                    <p className="text-sm text-gray-600 flex items-center gap-2">
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
                       {currentSession?.sessionType === 'lesson_based' ? 
                         'Discuss what you learned from the video' :
                         'Ask any financial questions or share your concerns'
@@ -689,7 +844,7 @@ export default function EnhancedUnifiedSessionInterface() {
                          connectionStatus === 'connecting' ? 'Connecting...' : 
                          'Ready'}
                       </span>
-                    </p>
+                    </div>
                   </div>
                 </div>
                 
@@ -699,11 +854,15 @@ export default function EnhancedUnifiedSessionInterface() {
                     className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                       showConversationPanel 
                         ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
                     }`}
+                    title={showConversationPanel ? "Hide transcript" : "Show conversation transcript"}
                   >
                     <MessageSquare className="w-4 h-4" />
-                    Transcript
+                    <span>Transcript</span>
+                    {!showConversationPanel && (
+                      <ChevronLeft className="w-3 h-3 text-gray-500 animate-pulse" />
+                    )}
                   </button>
                   
                   <button
@@ -726,6 +885,7 @@ export default function EnhancedUnifiedSessionInterface() {
                     sessionId={currentSession.id}
                     onStatusChange={handleStatusChange}
                     onError={handleConversationError}
+                    skipOpeningMessage={currentSession.sessionType === 'lesson_based' && currentSession.lessonPhase === 'qa_conversation'}
                     className="flex-1 p-8"
                   />
                 )}

@@ -26,6 +26,7 @@ import {
   KnowledgeBaseFile,
   SessionReport 
 } from '@/types';
+import AppHeader from '@/components/AppHeader';
 
 type AdminTab = 'lessons' | 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages';
 type SettingsTab = 'general' | 'voice' | 'ui';
@@ -1162,15 +1163,9 @@ The lesson context will be automatically added to this prompt when used.`;
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <a
-                href="/"
-                className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Back to Main Page"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Back
-              </a>
-              <h1 className="text-2xl font-bold text-gray-900">Financial Advisor - Admin Panel</h1>
+              <AppHeader />
+              <div className="h-6 w-px bg-gray-300"></div>
+              <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
             </div>
             <div className="text-sm text-gray-500">
               Educational Content Management

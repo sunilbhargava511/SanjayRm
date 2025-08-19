@@ -52,6 +52,7 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
   const [lessonPhase, setLessonPhase] = useState<LessonPhase>('intro');
   const [introCompleted, setIntroCompleted] = useState(false);
   const [lessonIntroMessage, setLessonIntroMessage] = useState<string | null>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
   
   // Video player ref for TTS coordination
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
@@ -171,10 +172,17 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
         const introData = await introResponse.json();
         // Use the opening message from the API response, or fallback to lesson's startMessage
         const introMessage = introData.openingMessage || lesson.startMessage;
+        setDebugLog(prev => [...prev, `✅ API Success: Got message (${introMessage?.length} chars)`]);
+        console.log('[UnifiedSession] Setting lesson intro message:', introMessage?.substring(0, 100) + '...');
         setLessonIntroMessage(introMessage);
       } else {
+        setDebugLog(prev => [...prev, `❌ API Failed: ${introResponse.status} ${introResponse.statusText}`]);
+        console.error('[UnifiedSession] Opening message API failed:', introResponse.status, introResponse.statusText);
         // Fallback to lesson's startMessage if API fails
-        setLessonIntroMessage(lesson.startMessage || 'Welcome to this lesson. Let\'s begin!');
+        const fallbackMessage = lesson.startMessage || 'Welcome to this lesson. Let\'s begin!';
+        setDebugLog(prev => [...prev, `📋 Using fallback: ${fallbackMessage?.length} chars`]);
+        console.log('[UnifiedSession] Using fallback intro message:', fallbackMessage?.substring(0, 100) + '...');
+        setLessonIntroMessage(fallbackMessage);
       }
 
       // Reset lesson progress states
@@ -374,6 +382,32 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
                 </p>
               </div>
 
+              {/* TTS Test - Inline for Debugging */}
+              <div className="mb-6 p-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl shadow-lg">
+                <h3 className="text-xl font-bold text-yellow-800 mb-3">🔊 TTS Test</h3>
+                <button
+                  onClick={() => {
+                    console.log('TTS Test button clicked');
+                    if ('speechSynthesis' in window) {
+                      const utterance = new SpeechSynthesisUtterance('Hello! This is a test of text to speech. Can you hear me?');
+                      utterance.rate = 0.9;
+                      utterance.onstart = () => console.log('TTS started');
+                      utterance.onend = () => console.log('TTS ended');
+                      utterance.onerror = (e) => console.error('TTS error:', e);
+                      window.speechSynthesis.speak(utterance);
+                    } else {
+                      alert('Speech synthesis not supported');
+                    }
+                  }}
+                  className="px-6 py-3 text-lg bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                >
+                  🎤 Test Browser TTS
+                </button>
+                <p className="text-sm text-yellow-600 mt-3">
+                  Click this button to test if text-to-speech works in your browser
+                </p>
+              </div>
+
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {lessons.map((lesson) => (
                   <div 
@@ -440,6 +474,26 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
                 </p>
               </div>
 
+              
+              {/* Debug Info */}
+              <div className="mb-4 p-3 bg-gray-100 rounded text-sm">
+                <div><strong>Lesson Phase:</strong> {lessonPhase}</div>
+                <div><strong>Intro Message Length:</strong> {lessonIntroMessage?.length || 0}</div>
+                <div><strong>Intro Completed:</strong> {introCompleted.toString()}</div>
+                <div><strong>Has Message:</strong> {!!lessonIntroMessage}</div>
+                {lessonIntroMessage && (
+                  <div><strong>Message Preview:</strong> {lessonIntroMessage.substring(0, 100)}...</div>
+                )}
+                <div className="mt-2">
+                  <strong>Debug Log:</strong>
+                  <ul className="list-disc list-inside mt-1">
+                    {debugLog.map((log, i) => (
+                      <li key={i} className="text-xs">{log}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              
               {/* TTS Player for Introduction */}
               {lessonPhase === 'intro' && lessonIntroMessage && (
                 <div className="mb-6">
@@ -589,7 +643,22 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
           </div>
         )}
 
-        {/* Back Button (if provided) */}
+        {/* Back Button - Always show when not on home */}
+        {currentMode !== 'session_select' && (
+          <div className="p-4">
+            <button
+              onClick={() => {
+                handleEndSession();
+                setCurrentMode('session_select');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+            >
+              ← Back to Home
+            </button>
+          </div>
+        )}
+
+        {/* Original Back Button (if provided) */}
         {onBack && currentMode === 'session_select' && (
           <div className="p-4">
             <button

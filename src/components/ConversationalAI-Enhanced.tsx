@@ -10,6 +10,7 @@ interface ConversationalAIProps {
   onStatusChange?: (status: ConnectionStatus) => void;
   onError?: (error: string) => void;
   className?: string;
+  skipOpeningMessage?: boolean; // Skip playing the opening message (useful for lesson Q&A)
 }
 
 type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -23,7 +24,8 @@ export default function ConversationalAI({
   onMessage,
   onStatusChange,
   onError,
-  className = ''
+  className = '',
+  skipOpeningMessage = false
 }: ConversationalAIProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [isMuted, setIsMuted] = useState(false);
@@ -178,13 +180,15 @@ export default function ConversationalAI({
       // Step 1: Request microphone permission
       await requestMicrophonePermission();
       
-      // Step 2: Get opening message from session transcript
-      const openingMessage = await getSessionOpeningMessage();
+      // Step 2: Get opening message (or use default for Q&A)
+      const openingMessage = skipOpeningMessage 
+        ? "Hi! I'm ready to answer any questions about what you just learned. What would you like to discuss?"
+        : await getSessionOpeningMessage();
       
       updateStatus('connecting');
       
-      // Step 3: Start ElevenLabs conversation with opening message
-      console.log('[Enhanced ConversationalAI] Starting conversation with opening message:', openingMessage.substring(0, 50) + '...');
+      // Step 3: Start ElevenLabs conversation with appropriate message
+      console.log('[Enhanced ConversationalAI] Starting conversation with message:', openingMessage.substring(0, 50) + '...', skipOpeningMessage ? '(Q&A mode)' : '(Opening mode)');
       
       const sessionConfig = {
         agentId: process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID!,
@@ -215,7 +219,7 @@ export default function ConversationalAI({
     } finally {
       setIsConnecting(false);
     }
-  }, [conversation, isConnecting, connectionStatus, requestMicrophonePermission, updateStatus, handleError, getSessionOpeningMessage]);
+  }, [conversation, isConnecting, connectionStatus, requestMicrophonePermission, updateStatus, handleError, getSessionOpeningMessage, skipOpeningMessage]);
 
   // End conversation
   const endConversation = useCallback(async () => {

@@ -28,6 +28,104 @@ export default function TTSPlayer({
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+
+  // Generate ElevenLabs TTS audio
+  const generateElevenLabsAudio = async () => {
+    if (!text) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('[TTSPlayer] Generating ElevenLabs TTS for:', text.substring(0, 50) + '...');
+      
+      const response = await fetch('/api/elevenlabs-tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          voiceSettings: {
+            voiceId: 'MXGyTMlsvQgQ4BL0emIa',
+            stability: 0.6,
+            similarity_boost: 0.8,
+            style: 0.4,
+            use_speaker_boost: true
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS generation failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      console.log('[TTSPlayer] ElevenLabs TTS generated successfully');
+      setGeneratedAudioUrl(audioUrl);
+      
+      // Create audio element and play
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.addEventListener('loadedmetadata', () => {
+        setDuration(audio.duration);
+        setIsLoading(false);
+      });
+
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setProgress(0);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        onComplete?.();
+        // Clean up blob URL
+        URL.revokeObjectURL(audioUrl);
+      });
+
+      audio.addEventListener('error', () => {
+        const errorMsg = 'Audio playback failed';
+        setError(errorMsg);
+        setIsLoading(false);
+        setIsPlaying(false);
+        onError?.(errorMsg);
+        URL.revokeObjectURL(audioUrl);
+      });
+
+      // Auto-play if requested
+      if (autoPlay) {
+        await audio.play();
+        setIsPlaying(true);
+        
+        // Start progress tracking
+        intervalRef.current = setInterval(() => {
+          if (audio) {
+            const currentTime = audio.currentTime;
+            const duration = audio.duration;
+            setProgress((currentTime / duration) * 100);
+          }
+        }, 100);
+      }
+
+    } catch (error) {
+      console.error('[TTSPlayer] ElevenLabs TTS generation failed:', error);
+      const errorMsg = 'Failed to generate TTS audio';
+      setError(errorMsg);
+      setIsLoading(false);
+      onError?.(errorMsg);
+    }
+  };
+
+  // Generate ElevenLabs TTS audio when text changes
+  useEffect(() => {
+    if (!audioUrl && text && autoPlay) {
+      generateElevenLabsAudio();
+    }
+  }, [text, autoPlay]);
 
   // Initialize audio when audioUrl changes
   useEffect(() => {
@@ -59,6 +157,7 @@ export default function TTSPlayer({
 
       // Auto-play if requested
       if (autoPlay) {
+        console.log('[TTSPlayer] Auto-play triggered for text:', text.substring(0, 50) + '...');
         setIsLoading(true);
         handlePlay();
       }
@@ -78,26 +177,35 @@ export default function TTSPlayer({
   const handlePlay = async () => {
     if (!audioRef.current) {
       // Fall back to browser TTS if no audio URL
+      console.log('[TTSPlayer] Using browser TTS for text:', text.substring(0, 100) + '...');
+      
       if ('speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 0.9;
         utterance.pitch = 1.0;
         utterance.volume = 1.0;
         
-        utterance.onstart = () => setIsPlaying(true);
+        utterance.onstart = () => {
+          console.log('[TTSPlayer] Browser TTS started');
+          setIsPlaying(true);
+        };
         utterance.onend = () => {
+          console.log('[TTSPlayer] Browser TTS completed');
           setIsPlaying(false);
           onComplete?.();
         };
-        utterance.onerror = () => {
+        utterance.onerror = (event) => {
+          console.error('[TTSPlayer] Browser TTS error:', event);
           const errorMsg = 'Browser TTS failed';
           setError(errorMsg);
           setIsPlaying(false);
           onError?.(errorMsg);
         };
         
+        console.log('[TTSPlayer] Starting speech synthesis...');
         window.speechSynthesis.speak(utterance);
       } else {
+        console.error('[TTSPlayer] Speech synthesis not available');
         const errorMsg = 'Audio playback not available';
         setError(errorMsg);
         onError?.(errorMsg);
