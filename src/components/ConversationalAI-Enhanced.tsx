@@ -11,6 +11,7 @@ interface ConversationalAIProps {
   onError?: (error: string) => void;
   className?: string;
   skipOpeningMessage?: boolean; // Skip playing the opening message (useful for lesson Q&A)
+  autoStart?: boolean; // Auto-start the conversation on mount
 }
 
 type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -25,7 +26,8 @@ export default function ConversationalAI({
   onStatusChange,
   onError,
   className = '',
-  skipOpeningMessage = false
+  skipOpeningMessage = false,
+  autoStart = false
 }: ConversationalAIProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [isMuted, setIsMuted] = useState(false);
@@ -261,19 +263,22 @@ export default function ConversationalAI({
   // Auto-start conversation on mount if needed
   useEffect(() => {
     if (!hasAutoStarted && connectionStatus === 'idle' && !isConnecting) {
-      const autoStart = localStorage.getItem('autoStartConversation');
+      const autoStartFromStorage = localStorage.getItem('autoStartConversation');
       
-      if (autoStart === 'true') {
+      if (autoStart || autoStartFromStorage === 'true') {
         console.log('[Enhanced ConversationalAI] Auto-starting conversation...');
         setHasAutoStarted(true);
         
-        setTimeout(() => {
-          startConversation();
+        // Start immediately without delay for smoother UX
+        startConversation();
+        
+        // Clean up localStorage flag if it was set
+        if (autoStartFromStorage === 'true') {
           localStorage.removeItem('autoStartConversation');
-        }, 500);
+        }
       }
     }
-  }, [hasAutoStarted, connectionStatus, isConnecting, startConversation]);
+  }, [hasAutoStarted, connectionStatus, isConnecting, startConversation, autoStart]);
 
   // Cleanup on unmount
   useEffect(() => {

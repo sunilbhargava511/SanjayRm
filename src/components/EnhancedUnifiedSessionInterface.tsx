@@ -268,6 +268,9 @@ export default function EnhancedUnifiedSessionInterface() {
         lessonPhase: 'qa_conversation'
       } : null);
 
+      // Set auto-start flag to automatically start the conversation
+      localStorage.setItem('autoStartConversation', 'true');
+      
       setCurrentMode('conversation');
 
     } catch (error) {
@@ -790,9 +793,30 @@ export default function EnhancedUnifiedSessionInterface() {
                     </div>
                     
                     <div className="flex gap-3">
+                      {/* Transcript Toggle Button */}
+                      <button
+                        onClick={() => setShowConversationPanel(!showConversationPanel)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                          showConversationPanel 
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
+                        }`}
+                        title={showConversationPanel ? "Hide transcript" : "Show lesson transcript"}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Transcript</span>
+                        {!showConversationPanel && (
+                          <ChevronLeft className="w-3 h-3 text-gray-500 animate-pulse" />
+                        )}
+                      </button>
+                      
                       {isVideoCompleted && (
                         <button
-                          onClick={() => setCurrentMode('conversation')}
+                          onClick={() => {
+                            // Set auto-start flag for immediate conversation start
+                            localStorage.setItem('autoStartConversation', 'true');
+                            setCurrentMode('conversation');
+                          }}
                           className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg"
                         >
                           <MessageSquare className="w-5 h-5" />
@@ -886,6 +910,7 @@ export default function EnhancedUnifiedSessionInterface() {
                     onStatusChange={handleStatusChange}
                     onError={handleConversationError}
                     skipOpeningMessage={currentSession.sessionType === 'lesson_based' && currentSession.lessonPhase === 'qa_conversation'}
+                    autoStart={true} // Always auto-start conversations for seamless UX
                     className="flex-1 p-8"
                   />
                 )}
