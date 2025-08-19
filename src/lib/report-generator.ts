@@ -355,7 +355,7 @@ export class ReportGenerator {
       throw new Error('Session not found');
     }
 
-    const chunks = await educationalSessionService.getAllActiveChunks();
+    // Legacy chunk system - get responses only
     const responses = await educationalSessionService.getSessionResponses(sessionId);
     const adminSettings = await educationalSessionService.getAdminSettings();
 
@@ -372,8 +372,6 @@ export class ReportGenerator {
 
     // Summary section
     this.addSubtitle('Session Summary');
-    this.addText(`Total Content Chunks: ${chunks.length}`);
-    this.addText(`Completed Chunks: ${session.currentChunkIndex + 1}`);
     this.addText(`Session Status: ${session.completed ? 'Completed' : 'In Progress'}`);
     
     if (responses.length > 0) {
@@ -385,48 +383,30 @@ export class ReportGenerator {
     // Content and Responses section
     this.addSubtitle('Educational Content & Responses');
 
-    for (let i = 0; i <= session.currentChunkIndex && i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const chunkResponses = responses.filter(r => r.chunkId === chunk.id);
-
-      this.addSection(`${i + 1}. ${chunk.title}`);
-      
-      // Add chunk content summary
-      this.addText('Content:', 5);
-      const contentSummary = chunk.content.substring(0, 200) + 
-        (chunk.content.length > 200 ? '...' : '');
-      this.addText(contentSummary, 10);
-
-      // Add chunk question
-      this.currentY += 3;
-      this.addText('Question:', 5);
-      this.addText(chunk.question, 10);
-
-      // Add responses if available and enabled
-      if (reportOptions.includeResponses && chunkResponses.length > 0) {
-        this.currentY += 3;
+    // Legacy chunk system - just show responses if any exist
+    if (responses.length > 0) {
+      responses.forEach((response, i) => {
+        this.addSection(`Interaction ${i + 1}`);
         
-        for (const response of chunkResponses) {
-          if (reportOptions.includeTimestamps) {
-            this.pdf.setFontSize(9);
-            this.pdf.setTextColor(128, 128, 128);
-            this.addText(`[${this.formatDate(response.timestamp)}]`, 5);
-            this.pdf.setTextColor(0, 0, 0);
-            this.pdf.setFontSize(11);
-          }
-
-          this.addText('User Response:', 5);
-          this.addText(response.userResponse, 10);
-          
-          this.currentY += 2;
-          this.addText('AI Response:', 5);
-          this.addText(response.aiResponse, 10);
+        if (reportOptions.includeTimestamps) {
+          this.pdf.setFontSize(9);
+          this.pdf.setTextColor(128, 128, 128);
+          this.addText(`[${this.formatDate(response.timestamp)}]`, 5);
+          this.pdf.setTextColor(0, 0, 0);
+          this.pdf.setFontSize(11);
         }
-      }
 
-      if (i < session.currentChunkIndex) {
-        this.addHorizontalLine();
-      }
+        this.addText('User Response:', 5);
+        this.addText(response.userResponse, 10);
+        
+        this.currentY += 2;
+        this.addText('AI Response:', 5);
+        this.addText(response.aiResponse, 10);
+
+        if (i < responses.length - 1) {
+          this.addHorizontalLine();
+        }
+      });
     }
 
     // Insights and Recommendations section

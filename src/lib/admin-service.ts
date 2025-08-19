@@ -2,104 +2,13 @@ import { db } from './database';
 import * as schema from './database/schema';
 import { eq, asc, desc } from 'drizzle-orm';
 import { 
-  ContentChunk, 
   AdminSettings, 
   SystemPrompt, 
   KnowledgeBaseFile,
-  ChunkFileUpload,
   SessionReport 
 } from '@/types';
 
 export class AdminService {
-  
-  // Content Chunk Management
-  async uploadChunk(
-    file: File, 
-    title: string, 
-    question: string,
-    orderIndex?: number
-  ): Promise<ContentChunk> {
-    const content = await file.text();
-    const chunkId = `chunk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // If no order index provided, put it at the end
-    let finalOrderIndex = orderIndex;
-    if (finalOrderIndex === undefined) {
-      const existingChunks = await this.getAllChunks();
-      finalOrderIndex = existingChunks.length;
-    }
-
-    const newChunk = await db.insert(schema.contentChunks).values({
-      id: chunkId,
-      orderIndex: finalOrderIndex,
-      title,
-      content,
-      question,
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }).returning();
-
-    return this.convertDatabaseChunk(newChunk[0]);
-  }
-
-  async getAllChunks(): Promise<ContentChunk[]> {
-    const chunks = await db
-      .select()
-      .from(schema.contentChunks)
-      .orderBy(asc(schema.contentChunks.orderIndex));
-
-    return chunks.map(this.convertDatabaseChunk);
-  }
-
-  async updateChunkOrder(chunkId: string, newOrderIndex: number): Promise<void> {
-    await db
-      .update(schema.contentChunks)
-      .set({ 
-        orderIndex: newOrderIndex,
-        updatedAt: new Date().toISOString() 
-      })
-      .where(eq(schema.contentChunks.id, chunkId));
-  }
-
-  async reorderChunks(chunkIds: string[]): Promise<void> {
-    // Update all chunks with their new order indices
-    for (let i = 0; i < chunkIds.length; i++) {
-      await this.updateChunkOrder(chunkIds[i], i);
-    }
-  }
-
-  async deleteChunk(chunkId: string): Promise<void> {
-    await db
-      .delete(schema.contentChunks)
-      .where(eq(schema.contentChunks.id, chunkId));
-
-    // Reorder remaining chunks to fill gaps
-    await this.normalizeChunkOrder();
-  }
-
-  async toggleChunkActive(chunkId: string, active: boolean): Promise<void> {
-    await db
-      .update(schema.contentChunks)
-      .set({ 
-        active,
-        updatedAt: new Date().toISOString() 
-      })
-      .where(eq(schema.contentChunks.id, chunkId));
-  }
-
-  async updateChunkContent(
-    chunkId: string, 
-    updates: { title?: string; content?: string; question?: string }
-  ): Promise<void> {
-    await db
-      .update(schema.contentChunks)
-      .set({
-        ...updates,
-        updatedAt: new Date().toISOString()
-      })
-      .where(eq(schema.contentChunks.id, chunkId));
-  }
 
   // Admin Settings Management
   async getAdminSettings(): Promise<AdminSettings | null> {
@@ -265,29 +174,6 @@ export class AdminService {
   }
 
   // Utility Methods
-  private async normalizeChunkOrder(): Promise<void> {
-    const chunks = await this.getAllChunks();
-    const sortedChunks = chunks.sort((a, b) => a.orderIndex - b.orderIndex);
-    
-    for (let i = 0; i < sortedChunks.length; i++) {
-      if (sortedChunks[i].orderIndex !== i) {
-        await this.updateChunkOrder(sortedChunks[i].id, i);
-      }
-    }
-  }
-
-  private convertDatabaseChunk(dbChunk: any): ContentChunk {
-    return {
-      id: dbChunk.id,
-      orderIndex: dbChunk.orderIndex,
-      title: dbChunk.title,
-      content: dbChunk.content,
-      question: dbChunk.question,
-      active: Boolean(dbChunk.active),
-      createdAt: new Date(dbChunk.createdAt),
-      updatedAt: new Date(dbChunk.updatedAt),
-    };
-  }
 
   private convertDatabaseSettings(dbSettings: any): AdminSettings {
     return {
@@ -326,25 +212,7 @@ export class AdminService {
     };
   }
 
-  // Bulk Operations
-  async bulkUpdateChunks(updates: Array<{
-    id: string;
-    title?: string;
-    content?: string;
-    question?: string;
-    active?: boolean;
-  }>): Promise<void> {
-    for (const update of updates) {
-      const { id, ...updateData } = update;
-      await db
-        .update(schema.contentChunks)
-        .set({
-          ...updateData,
-          updatedAt: new Date().toISOString()
-        })
-        .where(eq(schema.contentChunks.id, id));
-    }
-  }
+  // Bulk Operations (reserved for future use)
 
   // Report Management
   async getAllReports(): Promise<SessionReport[]> {
@@ -391,22 +259,17 @@ export class AdminService {
 
   // Analytics & Reporting
   async getContentStatistics(): Promise<{
-    totalChunks: number;
-    activeChunks: number;
     totalKnowledgeFiles: number;
     totalSystemPrompts: number;
     totalReports: number;
   }> {
-    const [chunks, kbFiles, prompts, reports] = await Promise.all([
-      this.getAllChunks(),
+    const [kbFiles, prompts, reports] = await Promise.all([
       this.getAllKnowledgeBaseFiles(),
       this.getAllSystemPrompts(),
       this.getAllReports()
     ]);
 
     return {
-      totalChunks: chunks.length,
-      activeChunks: chunks.filter(c => c.active).length,
       totalKnowledgeFiles: kbFiles.length,
       totalSystemPrompts: prompts.filter(p => p.active).length,
       totalReports: reports.length,

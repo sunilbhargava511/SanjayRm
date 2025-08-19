@@ -44,53 +44,23 @@ export async function POST(request: NextRequest) {
           );
         }
         
-        // Get the first chunk
-        const firstChunk = await educationalSessionService.getCurrentChunk(session.id);
+        // Get voice settings
         const voiceSettings = await educationalSessionService.getVoiceSettings();
         
         return NextResponse.json({
           success: true,
           session: session,
-          currentChunk: firstChunk,
           voiceSettings,
           structuredMode: useStructuredMode,
           conversationMode: useStructuredMode ? 'structured' : 'open-ended'
         });
 
       case 'get_current_chunk':
-        const { sessionId: chunkSessionId } = data;
-        if (!chunkSessionId) {
-          return NextResponse.json(
-            { success: false, error: 'Session ID is required' },
-            { status: 400 }
-          );
-        }
-
-        const currentChunk = await educationalSessionService.getCurrentChunk(chunkSessionId);
-        const chunkSession = await educationalSessionService.getSession(chunkSessionId);
-        
-        if (!currentChunk || !chunkSession) {
-          return NextResponse.json(
-            { success: false, error: 'Session or chunk not found' },
-            { status: 404 }
-          );
-        }
-
-        // Process chunk content based on personalization setting
-        const processedContent = await educationalSessionService.processChunkContent(
-          chunkSessionId,
-          currentChunk.content,
-          chunkSession.personalizationEnabled
+        // Legacy chunk system - no longer supported
+        return NextResponse.json(
+          { success: false, error: 'Chunk system has been deprecated' },
+          { status: 410 }
         );
-
-        return NextResponse.json({
-          success: true,
-          chunk: {
-            ...currentChunk,
-            content: processedContent
-          },
-          session: chunkSession,
-        });
 
       case 'process_conversation':
         // This handles the full conversational flow with ElevenLabs
@@ -103,9 +73,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Get current session and chunk
+        // Get current session
         const convSession = await educationalSessionService.getSession(convSessionId);
-        const convCurrentChunk = await educationalSessionService.getCurrentChunk(convSessionId);
         
         if (!convSession) {
           return NextResponse.json(
@@ -114,8 +83,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // If no current chunk, session is completed
-        if (!convCurrentChunk) {
+        // Check if session is completed
+        if (convSession.completed) {
           // Auto-generate report for completed session
           try {
             const reportResponse = await fetch(`${request.nextUrl.origin}/api/reports`, {
@@ -181,146 +150,37 @@ export async function POST(request: NextRequest) {
           });
         }
         
-        // Structured conversation is enabled - use chunk-based flow
-        const contentPrompt = await educationalSessionService.getSystemPrompt('content');
-        const systemPrompt = contentPrompt?.content || 'You are delivering educational content about financial planning.';
-        const useContentPrompt = true;
+        // Structured conversation is enabled - use standard QA flow
+        const qaPrompt = await educationalSessionService.getSystemPrompt('qa');
+        const systemPrompt = qaPrompt?.content || 'You are a helpful financial advisor assistant.';
 
         // Process the conversation through Claude
         let aiResponse: string;
         
         try {
-          // Determine if we should deliver chunk content or respond to Q&A
-          const sessionResponses = await educationalSessionService.getSessionResponses(convSessionId);
-          const currentChunkResponses = sessionResponses.filter(r => r.chunkId === convCurrentChunk.id);
+          const conversationMessages = conversationHistory || [{
+            role: 'user' as const,
+            content: userMessage
+          }];
           
-          if (currentChunkResponses.length === 0) {
-            // First interaction for this chunk - return chunk content directly (no Claude call needed)
-            if (useContentPrompt) {
-              // Structured mode: return chunk content and question directly
-              const processedContent = await educationalSessionService.processChunkContent(
-                convSessionId,
-                convCurrentChunk.content,
-                convSession.personalizationEnabled
-              );
-              
-              // Return chunk content directly with question - no Claude API call needed
-              aiResponse = `${processedContent}\n\n${convCurrentChunk.question}`;
-            } else {
-              // Non-educational mode: use QA prompt for open conversation
-              const conversationMessages = conversationHistory || [{
-                role: 'user' as const,
-                content: userMessage
-              }];
-              
-              aiResponse = await claudeService.sendMessage(conversationMessages, systemPrompt);
-            }
-          } else {
-            // User is responding to the chunk question
-            if (useContentPrompt) {
-              // Educational mode: structured flow
-              if (convSession.personalizationEnabled) {
-                // Use QA prompt for personalized conversation within educational flow
-                const qaPrompt = await educationalSessionService.getSystemPrompt('qa');
-                const qaSystemPrompt = qaPrompt?.content || 'You are a helpful financial advisor assistant.';
-                const messages = conversationHistory || [];
-                aiResponse = await claudeService.sendMessage(messages, qaSystemPrompt);
-              } else {
-                // Simple acknowledgment and move to next chunk
-                aiResponse = "Thank you for your response. Let's move on to the next topic.";
-              }
-            } else {
-              // Non-educational mode: continue open conversation with QA prompt
-              const messages = conversationHistory || [{
-                role: 'user' as const,
-                content: userMessage
-              }];
-              aiResponse = await claudeService.sendMessage(messages, systemPrompt);
-            }
-            
-            // Save the user response and AI response
-            await educationalSessionService.saveChunkResponse(
-              convSessionId,
-              convCurrentChunk.id,
-              userMessage,
-              aiResponse
-            );
-            
-            // Only advance to next chunk in educational mode
-            if (useContentPrompt) {
-              const hasNextChunk = await educationalSessionService.advanceToNextChunk(convSessionId);
-              
-              if (hasNextChunk) {
-                const nextChunk = await educationalSessionService.getCurrentChunk(convSessionId);
-                if (nextChunk) {
-                  const nextContent = await educationalSessionService.processChunkContent(
-                    convSessionId,
-                    nextChunk.content,
-                    convSession.personalizationEnabled
-                  );
-                  
-                  // Create enhanced system prompt for next chunk
-                  const nextEnhancedSystemPrompt = `${systemPrompt}
-
-CURRENT EDUCATIONAL CONTENT TO DELIVER:
-${nextContent}
-
-QUESTION TO ASK AFTER CONTENT:
-${nextChunk.question}
-
-Now deliver this content in your warm, conversational style and end with the question.`;
-                  
-                  const nextContentMessages = [{
-                    role: 'user' as const,
-                    content: 'Please continue with the next topic.'
-                  }];
-                  
-                  const nextChunkResponse = await claudeService.sendMessage(nextContentMessages as any, nextEnhancedSystemPrompt);
-                  aiResponse += `\n\n---\n\n${nextChunkResponse}`;
-                }
-              }
-            }
-          }
+          aiResponse = await claudeService.sendMessage(conversationMessages, systemPrompt);
         } catch (error) {
           console.error('Error processing conversation:', error);
-          aiResponse = "I apologize, but I encountered an error processing your message. Let's continue with the educational content.";
+          aiResponse = "I apologize, but I encountered an error processing your message. Please try again.";
         }
 
         return NextResponse.json({
           success: true,
           response: aiResponse,
-          currentChunk: convCurrentChunk,
-          sessionCompleted: await educationalSessionService.isSessionCompleted(convSessionId),
+          sessionCompleted: convSession.completed,
         });
 
       case 'advance_chunk':
-        // Mark current chunk as delivered and advance to next chunk
-        // Used when ElevenLabs delivers firstMessage or other non-webhook deliveries
-        const { sessionId: advanceSessionId } = data;
-        if (!advanceSessionId) {
-          return NextResponse.json(
-            { success: false, error: 'Session ID is required' },
-            { status: 400 }
-          );
-        }
-
-        console.log('🔧 [ADVANCE-CHUNK] Advancing chunk for session:', advanceSessionId);
-        const hasNext = await educationalSessionService.advanceToNextChunk(advanceSessionId);
-        const advancedSession = await educationalSessionService.getSession(advanceSessionId);
-        
-        console.log('📊 [ADVANCE-CHUNK] Advanced session state:', {
-          sessionId: advanceSessionId,
-          newChunkIndex: advancedSession?.currentChunkIndex,
-          hasNextChunk: hasNext,
-          completed: advancedSession?.completed
-        });
-
-        return NextResponse.json({
-          success: true,
-          hasNextChunk: hasNext,
-          newChunkIndex: advancedSession?.currentChunkIndex,
-          completed: advancedSession?.completed
-        });
+        // Legacy chunk system - no longer supported
+        return NextResponse.json(
+          { success: false, error: 'Chunk system has been deprecated' },
+          { status: 410 }
+        );
 
       case 'get_session_state':
         const { sessionId: stateSessionId } = data;
@@ -373,8 +233,7 @@ Now deliver this content in your warm, conversational style and end with the que
           conversationId // Store conversation_id
         );
 
-        // Mark first chunk as sent (delivered via ElevenLabs firstMessage)
-        await educationalSessionService.markChunkAsSent(conversationId, 1);
+        // Session created and linked to ElevenLabs conversation ID
 
         // Delete temporary session (optional cleanup)
         // await educationalSessionService.deleteSession(tempSessionId);

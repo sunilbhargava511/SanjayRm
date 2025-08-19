@@ -19,7 +19,6 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { 
-  ContentChunk, 
   Lesson,
   AdminSettings, 
   SystemPrompt, 
@@ -28,57 +27,14 @@ import {
 } from '@/types';
 import AppHeader from '@/components/AppHeader';
 
-type AdminTab = 'lessons' | 'chunks' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages';
+type AdminTab = 'lessons' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages';
 type SettingsTab = 'general' | 'voice' | 'ui';
 
-// Component for async summary generation
-const ChunkSummary: React.FC<{
-  chunkId: string;
-  content: string;
-  generateSummary: (chunkId: string, content: string) => Promise<string>;
-}> = ({ chunkId, content, generateSummary }) => {
-  const [summary, setSummary] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const loadSummary = async () => {
-      setIsLoading(true);
-      try {
-        const generatedSummary = await generateSummary(chunkId, content);
-        setSummary(generatedSummary);
-      } catch (error) {
-        console.error('Error generating summary:', error);
-        setSummary('Unable to generate summary');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadSummary();
-  }, [chunkId, content, generateSummary]);
-
-  if (isLoading) {
-    return (
-      <div className="text-blue-900 text-sm leading-relaxed">
-        <div className="animate-pulse flex space-x-1">
-          <div className="h-3 bg-blue-200 rounded w-20"></div>
-          <div className="h-3 bg-blue-200 rounded w-16"></div>
-          <div className="h-3 bg-blue-200 rounded w-24"></div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <p className="text-blue-900 text-sm leading-relaxed whitespace-pre-line">{summary}</p>
-  );
-};
 
 export default function AdminPanel() {
   const [currentTab, setCurrentTab] = useState<AdminTab>('lessons');
   const [currentSettingsTab, setCurrentSettingsTab] = useState<SettingsTab>('general');
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [chunks, setChunks] = useState<ContentChunk[]>([]);
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBaseFile[]>([]);
@@ -86,15 +42,12 @@ export default function AdminPanel() {
   const [openingMessages, setOpeningMessages] = useState<any>({ general: null, lessonMessages: [], lessons: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draggedChunk, setDraggedChunk] = useState<string | null>(null);
   const [draggedLesson, setDraggedLesson] = useState<string | null>(null);
-  const [showUploadForm, setShowUploadForm] = useState(false);
   const [showLessonForm, setShowLessonForm] = useState(false);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [showUploadKnowledgeForm, setShowUploadKnowledgeForm] = useState(false);
   const [hasBaseTemplate, setHasBaseTemplate] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
   
   // UI Preferences (stored in localStorage, not database)
@@ -132,9 +85,8 @@ export default function AdminPanel() {
     setError(null);
     
     try {
-      const [lessonsRes, chunksRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes, openingMessagesRes] = await Promise.all([
+      const [lessonsRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes, openingMessagesRes] = await Promise.all([
         fetch('/api/lessons'),
-        fetch('/api/admin/chunks'),
         fetch('/api/admin/settings'),
         fetch('/api/admin/prompts'),
         fetch('/api/admin/knowledge-base'),
@@ -148,10 +100,6 @@ export default function AdminPanel() {
         setLessons(lessonsData.lessons || []);
       }
 
-      if (chunksRes.ok) {
-        const chunksData = await chunksRes.json();
-        setChunks(chunksData.chunks || []);
-      }
 
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
@@ -190,303 +138,11 @@ export default function AdminPanel() {
     }
   };
 
-  // Chunk Management Functions
-  const uploadChunk = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    
-    try {
-      const response = await fetch('/api/admin/chunks', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        await loadData();
-        (e.target as HTMLFormElement).reset();
-        setShowUploadForm(false); // Close form after successful upload
-      } else {
-        const error = await response.json();
-        setError(error.error || 'Failed to upload chunk');
-      }
-    } catch (err) {
-      setError('Failed to upload chunk');
-    }
-  };
 
 
-  const deleteChunk = async (chunkId: string) => {
-    if (!confirm('Are you sure you want to delete this chunk?')) return;
 
-    try {
-      const response = await fetch(`/api/admin/chunks?id=${chunkId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        await loadData();
-      }
-    } catch (err) {
-      setError('Failed to delete chunk');
-    }
-  };
-
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, chunkId: string) => {
-    setDraggedChunk(chunkId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    
-    if (!draggedChunk) return;
-    
-    const draggedIndex = chunks.findIndex(c => c.id === draggedChunk);
-    if (draggedIndex === dropIndex) return;
-
-    // Reorder chunks array
-    const newChunks = [...chunks];
-    const draggedItem = newChunks.splice(draggedIndex, 1)[0];
-    newChunks.splice(dropIndex, 0, draggedItem);
-
-    // Update order indices
-    const reorderedIds = newChunks.map(c => c.id);
-    
-    try {
-      const response = await fetch('/api/admin/chunks', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reorder',
-          chunkIds: reorderedIds,
-        }),
-      });
-
-      if (response.ok) {
-        await loadData();
-      } else {
-        setError('Failed to reorder chunks');
-      }
-    } catch (err) {
-      setError('Failed to reorder chunks');
-    }
-    
-    setDraggedChunk(null);
-  };
-
-  // Preview chunk in new window
-  const previewChunk = (chunk: ContentChunk) => {
-    const content = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${chunk.title}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-            line-height: 1.6;
-            color: #333;
-            background-color: #fff;
-        }
-        .header {
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 1rem;
-            margin-bottom: 2rem;
-        }
-        h1 {
-            color: #1f2937;
-            margin: 0;
-            font-size: 2rem;
-            font-weight: 600;
-        }
-        .meta {
-            color: #6b7280;
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-        }
-        .content {
-            background-color: #f9fafb;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            white-space: pre-wrap;
-            line-height: 1.8;
-        }
-        .question {
-            background-color: #dbeafe;
-            border-left: 4px solid #3b82f6;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-        }
-        .question h3 {
-            margin: 0 0 1rem 0;
-            color: #1e40af;
-            font-size: 1.125rem;
-        }
-        .question p {
-            margin: 0;
-            color: #1e3a8a;
-            font-weight: 500;
-        }
-        .actions {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        button {
-            background-color: #3b82f6;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        button:hover {
-            background-color: #2563eb;
-        }
-        .export-btn {
-            background-color: #059669;
-        }
-        .export-btn:hover {
-            background-color: #047857;
-        }
-        .close-btn {
-            background-color: #6b7280;
-        }
-        .close-btn:hover {
-            background-color: #4b5563;
-        }
-        @media print {
-            .actions { display: none; }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>${chunk.title}</h1>
-        <div class="meta">
-            Created: ${new Date(chunk.createdAt).toLocaleDateString()} | 
-            Order: #${chunk.orderIndex + 1} | 
-            Status: ${chunk.active ? 'Active' : 'Inactive'}
-        </div>
-    </div>
-    
-    <div class="content">${chunk.content}</div>
-    
-    <div class="question">
-        <h3>Ending Question</h3>
-        <p>${chunk.question}</p>
-    </div>
-    
-    <div class="actions">
-        <button onclick="window.print()">Print</button>
-        <button class="export-btn" onclick="exportChunk()">Export as Text</button>
-        <button class="close-btn" onclick="window.close()">Close Window</button>
-    </div>
-    
-    <script>
-        function exportChunk() {
-            const content = \`${chunk.content}\\n\\n${chunk.question}\`;
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '${chunk.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    </script>
-</body>
-</html>`;
-    
-    const newWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
-    if (newWindow) {
-      newWindow.document.write(content);
-      newWindow.document.close();
-    } else {
-      alert('Please allow pop-ups for this site to preview chunks in new windows');
-    }
-  };
-
-  // Edit chunk through file upload
-  const [editingChunk, setEditingChunk] = useState<ContentChunk | null>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
-
-  const startEditChunk = (chunk: ContentChunk) => {
-    setEditingChunk(chunk);
-  };
-
-  const updateChunkFromFile = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editingChunk) return;
-
-    const formData = new FormData(e.currentTarget);
-    const file = formData.get('file') as File;
-    const title = formData.get('title') as string;
-    const question = formData.get('question') as string;
-
-    try {
-      let content = editingChunk.content; // Keep existing content if no file
-      if (file) {
-        content = await file.text();
-      }
-
-      const response = await fetch('/api/admin/chunks', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_content',
-          chunkId: editingChunk.id,
-          title: title || editingChunk.title,
-          content,
-          question: question || editingChunk.question,
-        }),
-      });
-
-      if (response.ok) {
-        await loadData();
-        setEditingChunk(null);
-      } else {
-        const error = await response.json();
-        setError(error.error || 'Failed to update chunk');
-      }
-    } catch (err) {
-      setError('Failed to update chunk');
-    }
-  };
-
-  // Export chunk
-  const exportChunk = (chunk: ContentChunk) => {
-    const content = `${chunk.content}\n\n${chunk.question}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${chunk.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   // Store generated summaries to avoid re-generating
-  const [chunkSummaries, setChunkSummaries] = useState<Record<string, string>>({});
 
   // Lesson Management Functions
   const createLesson = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -587,6 +243,10 @@ export default function AdminPanel() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   const handleLessonDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
     
@@ -630,39 +290,6 @@ export default function AdminPanel() {
     return youtubeRegex.test(url);
   };
 
-  // Generate a real 3-line summary of the chunk content using AI
-  const generateSummary = useCallback(async (chunkId: string, content: string): Promise<string> => {
-    // Return cached summary if available
-    if (chunkSummaries[chunkId]) {
-      return chunkSummaries[chunkId];
-    }
-
-    try {
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.summary) {
-          const summary = data.summary;
-          
-          // Cache the summary
-          setChunkSummaries(prev => ({ ...prev, [chunkId]: summary }));
-          return summary;
-        }
-      }
-    } catch (error) {
-      console.error('Failed to generate summary:', error);
-    }
-
-    // Fallback to first 3 sentences if AI fails
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const fallbackSummary = sentences.slice(0, 3).join('. ').trim();
-    return fallbackSummary.length > 200 ? fallbackSummary.substring(0, 197) + '...' : fallbackSummary + '.';
-  }, [chunkSummaries]);
 
   // System Prompt Management
 
@@ -1200,7 +827,6 @@ The lesson context will be automatically added to this prompt when used.`;
             <nav className="p-4 space-y-2">
               {[
                 { id: 'lessons', label: 'Lessons', icon: FileText, count: lessons.length },
-                { id: 'chunks', label: 'Content Chunks (Legacy)', icon: FileText, count: chunks.length },
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
                 { id: 'opening-messages', label: 'Opening Messages', icon: MessageSquare },
@@ -1499,247 +1125,6 @@ The lesson context will be automatically added to this prompt when used.`;
             </div>
           )}
 
-          {currentTab === 'chunks' && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Content Chunks</h2>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-500">
-                    {chunks.length} content chunks
-                  </span>
-                  <button
-                    onClick={() => setShowUploadForm(!showUploadForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {showUploadForm ? 'Cancel Upload' : 'Upload New Chunk'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Collapsible Upload Form */}
-              {showUploadForm && (
-                <form onSubmit={uploadChunk} className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <h3 className="text-lg font-medium mb-4">Upload New Chunk</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Chunk Title
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., Retirement Strategy Overview"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Text File
-                    </label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      name="file"
-                      accept=".txt,.md"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ending Question
-                  </label>
-                  <textarea
-                    name="question"
-                    required
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="What question should end this chunk to engage the user?"
-                  />
-                </div>
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      type="submit"
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Upload Chunk
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowUploadForm(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Enhanced Chunks List with Drag & Drop */}
-              <div className="space-y-4">
-                {chunks.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                    <p className="text-lg mb-2">No educational content yet</p>
-                    <p className="text-sm">Upload your first educational content chunk above to get started.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {chunks.map((chunk, index) => (
-                      <div
-                        key={chunk.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, chunk.id)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, index)}
-                        className={`border-2 rounded-lg p-4 transition-all cursor-move ${
-                          draggedChunk === chunk.id
-                            ? 'border-blue-400 bg-blue-50 shadow-lg scale-105'
-                            : 'border-gray-200 bg-white hover:shadow-md'
-                        }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          {/* Drag Handle */}
-                          <div className="flex items-center gap-2 pt-1">
-                            <GripVertical className="w-5 h-5 text-gray-400" />
-                            <span className="text-sm font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                              #{index + 1}
-                            </span>
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1">
-                            {editingChunk?.id === chunk.id ? (
-                              /* Edit Form */
-                              <form onSubmit={updateChunkFromFile} className="space-y-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Chunk Title
-                                  </label>
-                                  <input
-                                    type="text"
-                                    name="title"
-                                    defaultValue={chunk.title}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Text File (optional - leave empty to keep current content)
-                                  </label>
-                                  <input
-                                    ref={editFileInputRef}
-                                    type="file"
-                                    name="file"
-                                    accept=".txt,.md"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Ending Question
-                                  </label>
-                                  <textarea
-                                    name="question"
-                                    defaultValue={chunk.question}
-                                    rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                  />
-                                </div>
-                                <div className="flex gap-3">
-                                  <button
-                                    type="submit"
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                                  >
-                                    <Save className="w-4 h-4" />
-                                    Save Changes
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingChunk(null)}
-                                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </form>
-                            ) : (
-                              /* Display Mode */
-                              <div>
-                                <div className="flex items-center gap-3 mb-3">
-                                  <h3 className="text-lg font-semibold text-gray-900">
-                                    {chunk.title}
-                                  </h3>
-                                </div>
-                            
-                            <div className="grid md:grid-cols-2 gap-4 mb-3">
-                              <div className="text-sm text-gray-600">
-                                <span className="font-medium">Content:</span> {chunk.content.length} characters
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                <span className="font-medium">Created:</span> {new Date(chunk.createdAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                            
-                            {/* Content Summary */}
-                            <div className="bg-blue-50 rounded-md p-3 mb-3">
-                              <p className="text-sm font-medium text-blue-700 mb-1">Summary:</p>
-                              <ChunkSummary chunkId={chunk.id} content={chunk.content} generateSummary={generateSummary} />
-                            </div>
-                            
-                                <div className="bg-gray-50 rounded-md p-3 mb-3">
-                                  <p className="text-sm font-medium text-gray-700 mb-1">Question:</p>
-                                  <p className="text-gray-800">{chunk.question}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Actions */}
-                          {editingChunk?.id !== chunk.id && (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => previewChunk(chunk)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                title="Open in new window"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => startEditChunk(chunk)}
-                                className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                title="Edit chunk"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => exportChunk(chunk)}
-                                className="p-2 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                title="Export as file"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => deleteChunk(chunk.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Delete chunk"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {currentTab === 'settings' && (
             <div className="p-6">

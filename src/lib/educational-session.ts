@@ -40,9 +40,6 @@ export class EducationalSessionService {
       id: sessionId,
       conversationId: conversationId || sessionId, // Store ElevenLabs conversation_id
       conversationType,
-      currentChunkIndex: 0,
-      chunkLastDelivered: 0,
-      lastChunkSent: 0, // Track which chunk was last sent to user
       completed: false,
       personalizationEnabled: finalPersonalizationEnabled,
       conversationAware: finalConversationAware,
@@ -109,39 +106,26 @@ export class EducationalSessionService {
     return false;
   }
 
-  // New method to mark chunk as delivered
+  // Legacy chunk methods - disabled
   async markChunkAsDelivered(sessionId: string, chunkIndex: number): Promise<void> {
-    await this.updateSession(sessionId, { 
-      chunkLastDelivered: chunkIndex,
-      updatedAt: new Date()
-    });
+    // Legacy chunk system - disabled
+    return;
   }
 
-  // Mark chunk as sent to user (for first chunk via ElevenLabs firstMessage)
   async markChunkAsSent(sessionId: string, chunkIndex: number): Promise<void> {
-    await this.updateSession(sessionId, { 
-      lastChunkSent: chunkIndex,
-      updatedAt: new Date()
-    });
+    // Legacy chunk system - disabled
+    return;
   }
 
-  // Response Management
+  // Response Management (legacy - disabled)
   async saveChunkResponse(
     sessionId: string,
     chunkId: string,
     userResponse: string,
     aiResponse: string
   ): Promise<void> {
-    const responseId = `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    await db.insert(schema.sessionProgress).values({
-      id: responseId,
-      sessionId,
-      chunkId,
-      userResponse,
-      aiResponse,
-      timestamp: new Date().toISOString(),
-    });
+    // Legacy chunk response system - disabled
+    return;
   }
 
   async getSessionResponses(sessionId: string): Promise<any[]> {
@@ -297,9 +281,6 @@ Transition:`;
       conversationId: dbSession.conversationId,
       conversationType: dbSession.conversationType || 'structured',
       userId: dbSession.userId,
-      currentChunkIndex: dbSession.currentChunkIndex,
-      chunkLastDelivered: dbSession.chunkLastDelivered || 0,
-      lastChunkSent: dbSession.lastChunkSent || 0,
       completed: Boolean(dbSession.completed),
       personalizationEnabled: Boolean(dbSession.personalizationEnabled),
       conversationAware: dbSession.conversationAware !== null ? Boolean(dbSession.conversationAware) : undefined,
@@ -314,8 +295,14 @@ Transition:`;
   }
 
   private convertDatabaseResponse(dbResponse: any): any {
-    // Legacy chunk response system - return empty object
-    return {};
+    return {
+      id: dbResponse.id,
+      sessionId: dbResponse.sessionId,
+      chunkId: dbResponse.chunkId,
+      userResponse: dbResponse.userResponse,
+      aiResponse: dbResponse.aiResponse,
+      timestamp: new Date(dbResponse.timestamp),
+    };
   }
 
   private convertDatabaseSettings(dbSettings: any): AdminSettings {
@@ -349,16 +336,8 @@ Transition:`;
   ): any {
     if (session.completed) return 'completed';
     
-    // Check if we have a response for the current chunk
-    const currentChunkResponses = responses.filter(r => 
-      // This is a simplified check - in a real implementation,
-      // we'd match by chunk ID more precisely
-      responses.length > session.currentChunkIndex
-    );
-
-    if (currentChunkResponses.length === 0) {
-      return 'waiting_for_response';
-    }
+    // Legacy chunk system - return processing state
+    return 'processing';
 
     return 'loading'; // Default state for next chunk
   }
@@ -375,8 +354,8 @@ Transition:`;
     const session = await this.getSession(sessionId);
     if (!session) return false;
 
-    const allChunks = await this.getAllActiveChunks();
-    return session.completed || session.currentChunkIndex >= allChunks.length;
+    // Legacy chunk system - just check completed status
+    return session.completed;
   }
 
   // Voice Integration Helper

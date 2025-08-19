@@ -45,37 +45,9 @@ Think about it - would you rather have forty thousand rupees per month that you'
 
 export async function seedSampleContent(): Promise<void> {
   try {
-    console.log('🌱 Seeding sample educational content...');
-    
-    // Check if we already have content
-    const existingChunks = await adminService.getAllChunks();
-    if (existingChunks.length > 0) {
-      console.log('✅ Sample content already exists, skipping seed.');
-      return;
-    }
+    console.log('🌱 Legacy chunk seeding disabled - skipping.');
+    return;
 
-    // Create temporary files and upload chunks
-    for (let i = 0; i < sampleChunks.length; i++) {
-      const chunk = sampleChunks[i];
-      
-      // Create a temporary file-like object
-      const fileContent = chunk.content;
-      const file = new Blob([fileContent], { type: 'text/plain' });
-      
-      // Convert Blob to File
-      const testFile = new File([file], `chunk_${i + 1}.txt`, { type: 'text/plain' });
-      
-      await adminService.uploadChunk(
-        testFile,
-        chunk.title,
-        chunk.question,
-        i // order index
-      );
-      
-      console.log(`✅ Uploaded chunk ${i + 1}: ${chunk.title}`);
-    }
-    
-    console.log('🎉 Sample content seeded successfully!');
   } catch (error) {
     console.error('❌ Failed to seed sample content:', error);
     throw error;

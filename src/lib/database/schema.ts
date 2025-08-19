@@ -38,17 +38,6 @@ export const lessonConversations = sqliteTable('lesson_conversations', {
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
 
-// Content chunks for educational delivery (keeping for backward compatibility during migration)
-export const contentChunks = sqliteTable('content_chunks', {
-  id: text('id').primaryKey(),
-  orderIndex: integer('order_index').notNull(),
-  title: text('title').notNull(),
-  content: text('content').notNull(),
-  question: text('question').notNull(),
-  active: integer('active', { mode: 'boolean' }).default(true),
-  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
-  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
-});
 
 // Administrator settings
 export const adminSettings = sqliteTable('admin_settings', {
@@ -90,9 +79,6 @@ export const conversations = sqliteTable('conversations', {
   conversationId: text('conversation_id').unique(), // Store ElevenLabs conversation_id for reference
   conversationType: text('conversation_type').notNull().default('structured'), // 'structured' | 'open-ended'
   userId: text('user_id'), // Optional user identification
-  currentChunkIndex: integer('current_chunk_index').default(0), // Which chunk to deliver next (for structured)
-  chunkLastDelivered: integer('chunk_last_delivered').default(0), // Last chunk delivered (for structured)
-  lastChunkSent: integer('last_chunk_sent').default(0), // Track which chunk was last sent to user
   completed: integer('completed', { mode: 'boolean' }).default(false),
   personalizationEnabled: integer('personalization_enabled', { mode: 'boolean' }).default(false),
   conversationAware: integer('conversation_aware', { mode: 'boolean' }), // NULL = use admin default, true/false = override
@@ -195,8 +181,6 @@ export type NewUserSession = typeof userSessions.$inferInsert;
 export type LessonConversation = typeof lessonConversations.$inferSelect;
 export type NewLessonConversation = typeof lessonConversations.$inferInsert;
 
-export type ContentChunk = typeof contentChunks.$inferSelect;
-export type NewContentChunk = typeof contentChunks.$inferInsert;
 
 export type AdminSettings = typeof adminSettings.$inferSelect;
 export type NewAdminSettings = typeof adminSettings.$inferInsert;

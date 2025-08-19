@@ -159,7 +159,6 @@ export async function POST(request: NextRequest) {
           if (educationalSession) {
             console.log('✅ [SESSION-DEBUG] Educational session found using conversation_id!', {
               id: educationalSession.id,
-              currentChunkIndex: educationalSession.currentChunkIndex,
               completed: educationalSession.completed
             });
             educationalSessionId = conversationId;
@@ -183,7 +182,6 @@ export async function POST(request: NextRequest) {
               if (educationalSession) {
                 console.log('✅ [SESSION-DEBUG] Educational session found via metadata:', {
                   id: educationalSession.id,
-                  currentChunkIndex: educationalSession.currentChunkIndex,
                   completed: educationalSession.completed
                 });
                 useStructuredMode = true;
@@ -234,170 +232,30 @@ export async function POST(request: NextRequest) {
               
               console.log('🔍 [STRUCTURED] Processing conversation directly with educational session service');
               
-              // Get current chunk and session
-              const currentChunk = await educationalSessionService.getCurrentChunk(educationalSessionId);
+              // Get current session
               const currentSession = await educationalSessionService.getSession(educationalSessionId);
               
               // DEBUG: Show initial database state
               console.log('📊 [DATABASE-STATE] Initial educational session record:', {
                 id: currentSession?.id,
-                currentChunkIndex: currentSession?.currentChunkIndex,
                 completed: currentSession?.completed,
                 personalizationEnabled: currentSession?.personalizationEnabled,
                 createdAt: currentSession?.createdAt,
                 updatedAt: currentSession?.updatedAt
               });
               
-              console.log('📊 [DATABASE-STATE] Current chunk details:', {
-                chunkId: currentChunk?.id,
-                chunkIndex: currentChunk?.orderIndex,
-                chunkTitle: currentChunk?.title,
-                hasContent: !!currentChunk?.content,
-                contentLength: currentChunk?.content?.length,
-                hasQuestion: !!currentChunk?.question
-              });
+              // Use standard QA flow for structured conversations
+              const claudeService = getClaudeService();
+              const qaPrompt = await educationalSessionService.getSystemPrompt('qa');
+              const systemPrompt = qaPrompt?.content || 'You are a helpful financial advisor assistant.';
               
-              if (!currentChunk) {
-                console.log('🎯 [STRUCTURED] No more chunks - session completed');
-                responseContent = "Thank you for completing the educational program! Your comprehensive report has been generated and is available for download.";
-              } else {
-                console.log('🎯 [STRUCTURED] Processing chunk:', currentChunk.id, 'at index:', currentSession?.currentChunkIndex);
-                
-                // NEW LOGIC: All webhook calls are user responses since chunk 1 already delivered by ElevenLabs firstMessage
-                // The frontend advances the session after generating firstMessage, so currentChunkIndex > 0
-                const allSessionResponses = await educationalSessionService.getSessionResponses(educationalSessionId);
-                
-                // DEBUG: Show session response analysis
-                console.log('📊 [DATABASE-STATE] Session responses analysis:', {
-                  currentChunkIndex: currentSession?.currentChunkIndex,
-                  totalResponses: allSessionResponses.length,
-                  note: 'Chunk 1 already delivered by ElevenLabs firstMessage',
-                  responsesPerChunk: allSessionResponses.reduce((acc, response) => {
-                    acc[response.chunkId] = (acc[response.chunkId] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>)
-                });
-                
-                // All webhook calls are user responses to previously delivered chunks
-                console.log('🎯 [STRUCTURED] User responding to chunk, saving response and advancing...');
-                
-                const acknowledgment = currentSession?.personalizationEnabled 
-                  ? "Thank you for sharing that. Your response helps me understand your financial situation better."
-                  : "Thank you for your response.";
-                
-                // Save the user's response to the current chunk
-                console.log('💾 [DATABASE-UPDATE] Saving user response:', {
-                  sessionId: educationalSessionId,
-                  chunkId: currentChunk.id,
-                  userResponsePreview: userInput.substring(0, 100) + '...',
-                  aiResponsePreview: acknowledgment.substring(0, 50) + '...'
-                });
-                
-                await educationalSessionService.saveChunkResponse(
-                  educationalSessionId,
-                  currentChunk.id,
-                  userInput,
-                  acknowledgment
-                );
-                
-                // Always try to advance to the next chunk
-                const hasNextChunk = await educationalSessionService.advanceToNextChunk(educationalSessionId);
-                
-                // DEBUG: Show database state after advancement
-                const updatedSession = await educationalSessionService.getSession(educationalSessionId);
-                console.log('💾 [DATABASE-UPDATE] Session state after advancement:', {
-                  previousChunkIndex: currentSession?.currentChunkIndex,
-                  newChunkIndex: updatedSession?.currentChunkIndex,
-                  hasNextChunk: hasNextChunk,
-                  sessionCompleted: updatedSession?.completed
-                });
-                
-                if (hasNextChunk) {
-                  // Get the newly current chunk (after advancing)
-                  const nextChunk = await educationalSessionService.getCurrentChunk(educationalSessionId);
-                  if (nextChunk) {
-                    const nextContent = await educationalSessionService.processChunkContent(
-                      educationalSessionId,
-                      nextChunk.content,
-                      currentSession?.personalizationEnabled || false
-                    );
-                    
-                    responseContent = `${acknowledgment}\n\n---\n\n${nextContent}\n\n${nextChunk.question}`;
-                    
-                    // DEBUG: Show what's being returned for next chunk
-                    console.log('📤 [RESPONSE-TO-ELEVENLABS] Next chunk delivery:', {
-                      chunkId: nextChunk.id,
-                      chunkTitle: nextChunk.title,
-                      chunkIndex: nextChunk.orderIndex,
-                      acknowledgmentPreview: acknowledgment.substring(0, 50) + '...',
-                      contentPreview: nextContent.substring(0, 100) + '...',
-                      questionPreview: nextChunk.question.substring(0, 100) + '...',
-                      fullResponseLength: responseContent.length
-                    });
-                    
-                    console.log('✅ [STRUCTURED] Delivered next chunk:', nextChunk.id, 'at index:', nextChunk.orderIndex);
-                  } else {
-                    responseContent = acknowledgment;
-                    console.log('⚠️ [STRUCTURED] Next chunk not found after advancing');
-                  }
-                } else {
-                  // Session completed - generate comprehensive report
-                  console.log('🔧 [REPORT-GENERATION] Session completed, generating comprehensive report...');
-                  
-                  try {
-                    // Generate report using the same pattern as educational-session API
-                    const baseUrl = request.nextUrl.origin.replace('https://localhost', 'http://localhost').replace(':3001', ':3000');
-                    const reportResponse = await fetch(`${baseUrl}/api/reports`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        action: 'generate',
-                        sessionId: educationalSessionId,
-                        options: {
-                          includeResponses: true,
-                          includeTimestamps: true,
-                          includePersonalizationNotes: currentSession?.personalizationEnabled,
-                          useBaseTemplate: true
-                        }
-                      })
-                    });
-
-                    if (reportResponse.ok) {
-                      const reportData = await reportResponse.json();
-                      console.log('✅ [REPORT-GENERATION] Report generated successfully:', {
-                        reportId: reportData.reportId,
-                        reportPath: reportData.reportPath
-                      });
-                      
-                      responseContent = `${acknowledgment}\n\nCongratulations! You've completed the educational program. Your comprehensive report has been generated and is available for download.`;
-                    } else {
-                      console.error('❌ [REPORT-GENERATION] Report generation failed:', await reportResponse.text());
-                      responseContent = `${acknowledgment}\n\nCongratulations! You've completed the educational program. Your report will be available shortly.`;
-                    }
-                  } catch (reportError) {
-                    console.error('❌ [REPORT-GENERATION] Report generation error:', reportError);
-                    responseContent = `${acknowledgment}\n\nCongratulations! You've completed the educational program. Thank you for your participation!`;
-                  }
-                  
-                  // DEBUG: Show completion details
-                  console.log('📤 [RESPONSE-TO-ELEVENLABS] Session completion:', {
-                    finalAcknowledgment: acknowledgment,
-                    completionMessage: "Educational program completed",
-                    fullResponseLength: responseContent.length
-                  });
-                  
-                  console.log('✅ [STRUCTURED] Educational session completed - no more chunks');
-                }
-                
-                // DEBUG: Final summary of database state
-                const finalSession = await educationalSessionService.getSession(educationalSessionId);
-                console.log('📊 [DATABASE-STATE] Final session summary:', {
-                  sessionId: educationalSessionId,
-                  currentChunkIndex: finalSession?.currentChunkIndex,
-                  completed: finalSession?.completed,
-                  responseBeingSent: responseContent.substring(0, 200) + '...'
-                });
-              }
+              console.log('🎯 [STRUCTURED] Generating structured response using QA prompt');
+              
+              responseContent = await claudeService.sendMessage(conversationHistory, systemPrompt);
+              
+              console.log('✅ [STRUCTURED] Generated structured response', {
+                responseLength: responseContent.length
+              });
               
             } else {
               console.log('🔹 [OPEN-ENDED] Using Claude for response generation');

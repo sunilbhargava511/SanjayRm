@@ -67,9 +67,6 @@ export interface Conversation {
   conversationId?: string; // ElevenLabs conversation_id for reference
   conversationType: 'structured' | 'open-ended';
   userId?: string;
-  currentChunkIndex: number; // Which chunk to deliver next (for structured)
-  chunkLastDelivered: number; // Last chunk delivered (for structured)
-  lastChunkSent: number; // Track which chunk was last sent to user
   completed: boolean;
   personalizationEnabled: boolean;
   conversationAware?: boolean; // Optional - falls back to admin setting if not set
@@ -86,7 +83,7 @@ export interface AdminSettings {
   voiceId: string;
   voiceDescription: string;
   personalizationEnabled: boolean;
-  conversationAware: boolean; // Enable smooth lead-ins between chunks
+  conversationAware: boolean; // Enable conversation-aware responses
   useStructuredConversation: boolean;
   baseReportPath?: string;
   baseReportTemplate?: Uint8Array; // PDF template binary data

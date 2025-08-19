@@ -233,7 +233,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { messages, variables = {} } = body;
     
     // Extract the last user message
-    const userMessage = messages[messages.length - 1];
+    const userMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
     
     // Validate we have a user message to respond to
     if (!userMessage || userMessage.role !== 'user') {
@@ -348,7 +348,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         updatedVariables = {
           ...variables,
           conversation_id: conversationId,
-          current_chunk: data.currentChunk?.id,
           session_completed: data.sessionCompleted || false,
           structured_mode: true,
           conversation_mode: 'structured'
