@@ -468,7 +468,7 @@ export default function EnhancedUnifiedSessionInterface() {
                           
                         } catch (error) {
                           console.error('ElevenLabs TTS test failed:', error);
-                          alert('ElevenLabs TTS test failed: ' + error.message);
+                          alert('ElevenLabs TTS test failed: ' + (error instanceof Error ? error.message : String(error)));
                         }
                       }}
                       className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
