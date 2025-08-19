@@ -105,7 +105,6 @@ ${lessonPrompt}
 LESSON DETAILS:
 - Title: ${lesson.title}
 - Video Summary: ${lesson.videoSummary}
-- Key Question: ${lesson.question}
 
 TASK: Generate the FIRST Q&A message after the user completed the lesson video.
 
@@ -116,9 +115,8 @@ Generate a warm, engaging message (50-100 words) that:
 1. Acknowledges video completion with enthusiasm
 2. References specific lesson concepts from the video summary
 3. Asks an engaging, open-ended question to start discussion
-4. Builds naturally on the lesson intro message (visible in transcript)
-5. Maintains your conversational, supportive tone as Sanjay
-6. Creates excitement for the discussion ahead
+4. Maintains your conversational, supportive tone as Sanjay
+5. Creates excitement for the discussion ahead
 
 This message will be spoken via TTS to start the Q&A conversation. Make it sound natural when spoken aloud.
 
