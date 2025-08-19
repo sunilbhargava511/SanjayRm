@@ -61,16 +61,6 @@ export interface KnowledgeBaseContext {
 }
 
 // Educational System Types
-export interface ContentChunk {
-  id: string;
-  orderIndex: number;
-  title: string;
-  content: string;
-  question: string;
-  active: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 export interface Conversation {
   id: string;
@@ -90,14 +80,6 @@ export interface Conversation {
 // Keep old interface for backward compatibility during migration
 export interface EducationalSession extends Conversation {}
 
-export interface ChunkResponse {
-  id: string;
-  sessionId: string;
-  chunkId: string;
-  userResponse: string;
-  aiResponse: string;
-  timestamp: Date;
-}
 
 export interface AdminSettings {
   id: string;
@@ -139,25 +121,23 @@ export interface SessionReport {
 }
 
 // Educational Flow Types
-export type ChunkDeliveryState = 'loading' | 'playing' | 'waiting_for_response' | 'processing' | 'completed';
 
 export interface ConversationState {
   conversation: Conversation | null;
-  chunks: ContentChunk[];
-  currentChunk: ContentChunk | null;
-  responses: ChunkResponse[];
-  deliveryState: ChunkDeliveryState;
   isPersonalizationEnabled: boolean;
 }
 
 // Keep old interface for backward compatibility during migration
 export interface EducationalSessionState extends ConversationState {
   session: EducationalSession | null; // Alias for conversation
+  chunks?: Chunk[];
+  currentChunk?: Chunk | null;
+  responses?: ChunkResponse[];
+  deliveryState?: string;
 }
 
 // Admin Panel Types
 export interface AdminPanelState {
-  chunks: ContentChunk[];
   settings: AdminSettings | null;
   systemPrompts: SystemPrompt[];
   knowledgeBase: KnowledgeBaseFile[];
@@ -165,11 +145,6 @@ export interface AdminPanelState {
   error: string | null;
 }
 
-export interface ChunkFileUpload {
-  file: File;
-  title: string;
-  question: string;
-}
 
 // Voice & Audio Types (enhanced)
 export interface VoiceSettings {
