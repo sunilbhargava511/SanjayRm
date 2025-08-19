@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { PDFDocument } from 'pdf-lib';
-import { EducationalSession, ContentChunk, ChunkResponse } from '@/types';
+import { EducationalSession } from '@/types';
 import { educationalSessionService } from './educational-session';
 
 export interface ReportOptions {
@@ -216,7 +216,7 @@ export class ReportGenerator {
   // Generate Q&A Summary section
   private async generateQASummaryPDF(
     sessionId: string,
-    responses: ChunkResponse[],
+    responses: any[],
     options: ReportOptions
   ): Promise<Uint8Array> {
     // Reset PDF state
@@ -285,7 +285,7 @@ export class ReportGenerator {
   // Generate Transcript section
   private async generateTranscriptPDF(
     sessionId: string,
-    responses: ChunkResponse[],
+    responses: any[],
     options: ReportOptions
   ): Promise<Uint8Array> {
     // Reset PDF state
@@ -477,7 +477,7 @@ export class ReportGenerator {
     return new Uint8Array(arrayBuffer);
   }
 
-  private extractInsights(responses: ChunkResponse[]): string[] {
+  private extractInsights(responses: any[]): string[] {
     const insights: string[] = [];
     
     // Extract key themes from user responses

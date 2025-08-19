@@ -130,10 +130,6 @@ export interface ConversationState {
 // Keep old interface for backward compatibility during migration
 export interface EducationalSessionState extends ConversationState {
   session: EducationalSession | null; // Alias for conversation
-  chunks?: Chunk[];
-  currentChunk?: Chunk | null;
-  responses?: ChunkResponse[];
-  deliveryState?: string;
 }
 
 // Admin Panel Types

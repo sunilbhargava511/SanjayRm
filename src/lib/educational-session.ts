@@ -4,11 +4,8 @@ import { eq, and, asc } from 'drizzle-orm';
 import { 
   Conversation,
   EducationalSession, // Keep for backward compatibility
-  ContentChunk, 
-  ChunkResponse,
   AdminSettings,
   SystemPrompt,
-  ChunkDeliveryState,
   ConversationState,
   EducationalSessionState // Keep for backward compatibility
 } from '@/types';
@@ -86,60 +83,30 @@ export class EducationalSessionService {
       .where(eq(schema.conversations.id, sessionId));
   }
 
-  // Content Chunk Management  
-  async getAllActiveChunks(): Promise<ContentChunk[]> {
-    const chunks = await db
-      .select()
-      .from(schema.contentChunks)
-      .where(eq(schema.contentChunks.active, true))
-      .orderBy(asc(schema.contentChunks.orderIndex));
-
-    return chunks.map(this.convertDatabaseChunk);
+  // Content Chunk Management (legacy - disabled)
+  async getAllActiveChunks(): Promise<any[]> {
+    // Legacy chunk system - return empty array
+    return [];
   }
 
-  async getChunkByIndex(index: number): Promise<ContentChunk | null> {
-    const chunks = await db
-      .select()
-      .from(schema.contentChunks)
-      .where(and(
-        eq(schema.contentChunks.active, true),
-        eq(schema.contentChunks.orderIndex, index)
-      ))
-      .limit(1);
-
-    if (chunks.length === 0) return null;
-    return this.convertDatabaseChunk(chunks[0]);
+  async getChunkByIndex(index: number): Promise<any | null> {
+    // Legacy chunk system - return null
+    return null;
   }
 
-  async getCurrentChunk(sessionId: string): Promise<ContentChunk | null> {
-    const session = await this.getSession(sessionId);
-    if (!session) return null;
-
-    return this.getChunkByIndex(session.currentChunkIndex);
+  async getCurrentChunk(sessionId: string): Promise<any | null> {
+    // Legacy chunk system - return null
+    return null;
   }
 
-  async getNextChunk(sessionId: string): Promise<ContentChunk | null> {
-    const session = await this.getSession(sessionId);
-    if (!session) return null;
-
-    const nextIndex = session.currentChunkIndex + 1;
-    return this.getChunkByIndex(nextIndex);
+  async getNextChunk(sessionId: string): Promise<any | null> {
+    // Legacy chunk system - return null
+    return null;
   }
 
   async advanceToNextChunk(sessionId: string): Promise<boolean> {
-    const session = await this.getSession(sessionId);
-    const allChunks = await this.getAllActiveChunks();
-    
-    if (!session || session.currentChunkIndex >= allChunks.length - 1) {
-      // Mark session as completed if we're at the last chunk
-      await this.updateSession(sessionId, { completed: true });
-      return false;
-    }
-
-    await this.updateSession(sessionId, { 
-      currentChunkIndex: session.currentChunkIndex + 1 
-    });
-    return true;
+    // Legacy chunk system - return false
+    return false;
   }
 
   // New method to mark chunk as delivered
@@ -177,7 +144,7 @@ export class EducationalSessionService {
     });
   }
 
-  async getSessionResponses(sessionId: string): Promise<ChunkResponse[]> {
+  async getSessionResponses(sessionId: string): Promise<any[]> {
     const responses = await db
       .select()
       .from(schema.sessionProgress)
@@ -216,17 +183,11 @@ export class EducationalSessionService {
     const session = await this.getSession(sessionId);
     if (!session) return null;
 
-    const chunks = await this.getAllActiveChunks();
-    const currentChunk = await this.getCurrentChunk(sessionId);
-    const responses = await this.getSessionResponses(sessionId);
+    // Chunk functionality removed
 
     return {
       conversation: session, // ConversationState property
       session, // EducationalSessionState property (alias)
-      chunks,
-      currentChunk,
-      responses,
-      deliveryState: this.determineDeliveryState(session, responses),
       isPersonalizationEnabled: session.personalizationEnabled,
     };
   }
@@ -276,7 +237,7 @@ export class EducationalSessionService {
 
   // Generate a smooth lead-in based on conversation history
   private async generateConversationAwareLeadIn(
-    responses: ChunkResponse[],
+    responses: any[],
     upcomingChunkContent: string
   ): Promise<string | null> {
     if (responses.length === 0) return null;
@@ -347,28 +308,14 @@ Transition:`;
     };
   }
 
-  private convertDatabaseChunk(dbChunk: any): ContentChunk {
-    return {
-      id: dbChunk.id,
-      orderIndex: dbChunk.orderIndex,
-      title: dbChunk.title,
-      content: dbChunk.content,
-      question: dbChunk.question,
-      active: Boolean(dbChunk.active),
-      createdAt: new Date(dbChunk.createdAt),
-      updatedAt: new Date(dbChunk.updatedAt),
-    };
+  private convertDatabaseChunk(dbChunk: any): any {
+    // Legacy chunk system - return empty object
+    return {};
   }
 
-  private convertDatabaseResponse(dbResponse: any): ChunkResponse {
-    return {
-      id: dbResponse.id,
-      sessionId: dbResponse.sessionId,
-      chunkId: dbResponse.chunkId,
-      userResponse: dbResponse.userResponse,
-      aiResponse: dbResponse.aiResponse,
-      timestamp: new Date(dbResponse.timestamp),
-    };
+  private convertDatabaseResponse(dbResponse: any): any {
+    // Legacy chunk response system - return empty object
+    return {};
   }
 
   private convertDatabaseSettings(dbSettings: any): AdminSettings {
@@ -398,8 +345,8 @@ Transition:`;
 
   private determineDeliveryState(
     session: EducationalSession,
-    responses: ChunkResponse[]
-  ): ChunkDeliveryState {
+    responses: any[]
+  ): any {
     if (session.completed) return 'completed';
     
     // Check if we have a response for the current chunk
