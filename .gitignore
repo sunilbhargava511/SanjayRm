@@ -42,3 +42,12 @@ next-env.d.ts
 
 # test app (exclude from build)
 elevenlabs-test-app/
+
+# Database files with cached audio data
+database.sqlite
+database.sqlite-wal
+database.sqlite-shm
+database-*.sqlite
+*.db
+*.db-wal
+*.db-shm
