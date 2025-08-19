@@ -766,7 +766,6 @@ export default function EnhancedUnifiedSessionInterface() {
                   {/* Audio Player for Introduction */}
                   {lessonPhase === 'intro' && lessonIntroMessage && (
                     <div className="mb-6">
-                      {console.log('[EnhancedUnified] Rendering AudioPlayer with audioUrl:', lessonIntroAudioUrl)}
                       <AudioPlayer
                         audioUrl={lessonIntroAudioUrl}
                         autoPlay={true}

@@ -497,15 +497,16 @@ export default function UnifiedSessionInterface({ onBack }: UnifiedSessionInterf
               {/* TTS Player for Introduction */}
               {lessonPhase === 'intro' && lessonIntroMessage && (
                 <div className="mb-6">
-                  <TTSPlayer
-                    text={lessonIntroMessage}
+                  <AudioPlayer
+                    audioUrl={null}
                     autoPlay={true}
                     onComplete={handleTTSComplete}
                     onError={(error) => {
-                      console.error('TTS Error:', error);
-                      // Still allow progression to video even if TTS fails
+                      console.error('Audio Error:', error);
+                      // Still allow progression to video even if audio fails
                       handleTTSComplete();
                     }}
+                    title="Lesson Introduction"
                     className="mb-4"
                   />
                   
