@@ -205,6 +205,46 @@ export class DebugLLMServiceServer {
       processingTime
     });
   }
+
+  // Get recent debug entries (for real-time display)
+  getRecentEntries(limit: number = 20): LLMDebugEntry[] {
+    const currentSession = debugSessionManager.getCurrentSession();
+    if (!currentSession) return [];
+
+    return currentSession.entries
+      .slice(-limit)
+      .reverse(); // Most recent first
+  }
+
+  // Get all entries for current session
+  getCurrentSessionEntries(): LLMDebugEntry[] {
+    const currentSession = debugSessionManager.getCurrentSession();
+    if (!currentSession) return [];
+
+    return [...currentSession.entries].reverse(); // Most recent first
+  }
+
+  // Get debug statistics
+  getDebugStats(): {
+    isEnabled: boolean;
+    currentSessionId: string | null;
+    totalSessions: number;
+    currentSessionEntries: number;
+  } {
+    const currentSession = debugSessionManager.getCurrentSession();
+    return {
+      isEnabled: this.isDebugEnabledSync(),
+      currentSessionId: currentSession?.id || null,
+      totalSessions: debugSessionManager.getAllSessions().length,
+      currentSessionEntries: currentSession?.entries.length || 0
+    };
+  }
+
+  // Clear debug data
+  clearDebugData(): void {
+    debugSessionManager.clearAllSessions();
+    console.log('[Debug LLM Server] Cleared all debug data');
+  }
 }
 
 // Singleton instance for server-side use

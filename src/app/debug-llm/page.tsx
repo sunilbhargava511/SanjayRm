@@ -3,18 +3,26 @@
 import React, { useState, useEffect } from 'react';
 import { Bug, Download, Trash2, RefreshCw, Play, Pause } from 'lucide-react';
 import DebugLLMPanel from '@/components/debug/DebugLLMPanel';
-import { debugSessionManager, DebugSession } from '@/lib/debug-session-manager';
-import { debugLLMService } from '@/lib/debug-llm-service';
+import { LLMDebugEntry } from '@/lib/debug-session-manager';
+
+interface DebugStats {
+  isEnabled: boolean;
+  currentSessionId: string | null;
+  totalSessions: number;
+  currentSessionEntries: number;
+}
 
 export default function DebugLLMPage() {
-  const [sessions, setSessions] = useState<DebugSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [entries, setEntries] = useState<LLMDebugEntry[]>([]);
+  const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
   const [isRealTime, setIsRealTime] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load sessions on mount
+  // Load debug data on mount
   useEffect(() => {
-    loadSessions();
+    loadDebugData();
   }, [refreshKey]);
 
   // Real-time updates
@@ -22,58 +30,89 @@ export default function DebugLLMPage() {
     if (!isRealTime) return;
 
     const interval = setInterval(() => {
-      loadSessions();
+      loadDebugData();
     }, 3000);
 
     return () => clearInterval(interval);
   }, [isRealTime]);
 
-  const loadSessions = () => {
-    const allSessions = debugSessionManager.getAllSessions();
-    setSessions(allSessions);
-    
-    const current = debugSessionManager.getCurrentSession();
-    setCurrentSessionId(current?.id || null);
-  };
+  const loadDebugData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const handleSessionSwitch = (sessionId: string) => {
-    debugSessionManager.switchToSession(sessionId);
-    setCurrentSessionId(sessionId);
-    console.log('Switched to session:', sessionId);
-  };
+      // Fetch debug stats and entries
+      const [statsResponse, entriesResponse] = await Promise.all([
+        fetch('/api/debug-llm?action=stats'),
+        fetch('/api/debug-llm?action=current-session')
+      ]);
 
-  const handleClearSession = (sessionId: string) => {
-    if (confirm('Are you sure you want to clear this session?')) {
-      debugSessionManager.clearSession(sessionId);
-      loadSessions();
+      if (!statsResponse.ok || !entriesResponse.ok) {
+        throw new Error('Failed to fetch debug data');
+      }
+
+      const statsData = await statsResponse.json();
+      const entriesData = await entriesResponse.json();
+
+      if (statsData.success) {
+        setDebugStats(statsData.stats);
+      }
+
+      if (entriesData.success) {
+        setEntries(entriesData.entries || []);
+      }
+    } catch (err) {
+      console.error('Error loading debug data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load debug data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleClearAll = () => {
-    if (confirm('Are you sure you want to clear all debug sessions?')) {
-      debugLLMService.clearDebugData();
-      loadSessions();
+  const handleClearAll = async () => {
+    if (confirm('Are you sure you want to clear all debug data?')) {
+      try {
+        const response = await fetch('/api/debug-llm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'clear' })
+        });
+
+        if (response.ok) {
+          await loadDebugData();
+        } else {
+          throw new Error('Failed to clear debug data');
+        }
+      } catch (err) {
+        console.error('Error clearing debug data:', err);
+        setError('Failed to clear debug data');
+      }
     }
   };
 
   const handleExport = () => {
-    if (!currentSessionId) return;
+    if (!entries.length) return;
     
     try {
-      const exportData = debugSessionManager.exportSession(currentSessionId);
-      const blob = new Blob([exportData], { type: 'application/json' });
+      const exportData = {
+        timestamp: new Date().toISOString(),
+        debugStats,
+        entries
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
       const a = document.createElement('a');
       a.href = url;
-      a.download = `debug-session-${currentSessionId}-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `debug-llm-data-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export session data');
+      alert('Failed to export debug data');
     }
   };
 
@@ -81,8 +120,34 @@ export default function DebugLLMPage() {
     setRefreshKey(prev => prev + 1);
   };
 
-  const currentSession = sessions.find(s => s.id === currentSessionId);
-  const debugStats = debugLLMService.getDebugStats();
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading debug data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+          <Bug className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Debug Data</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={handleRefresh}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -95,21 +160,14 @@ export default function DebugLLMPage() {
               <h1 className="text-2xl font-bold text-gray-900">Debug LLM</h1>
             </div>
             
-            {/* Session Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Session:</span>
-              <select
-                value={currentSessionId || ''}
-                onChange={(e) => e.target.value && handleSessionSwitch(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select session...</option>
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.title} ({session.entries.length} entries)
-                  </option>
-                ))}
-              </select>
+            {/* Debug Status */}
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                Status: {debugStats?.isEnabled ? '✅ Enabled' : '❌ Disabled'}
+              </span>
+              <span className="text-sm text-gray-600">
+                Entries: {entries.length}
+              </span>
             </div>
           </div>
 
@@ -140,7 +198,7 @@ export default function DebugLLMPage() {
             {/* Export */}
             <button
               onClick={handleExport}
-              disabled={!currentSessionId}
+              disabled={!entries.length}
               className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               <Download className="w-3 h-3" />
@@ -160,42 +218,85 @@ export default function DebugLLMPage() {
 
         {/* Stats */}
         <div className="mt-4 flex items-center gap-6 text-sm text-gray-600">
-          <span>Debug Status: {debugStats.isEnabled ? '✅ Enabled' : '❌ Disabled'}</span>
-          <span>Total Sessions: {debugStats.totalSessions}</span>
-          <span>Current Session Entries: {debugStats.currentSessionEntries}</span>
-          {currentSession && (
+          <span>Debug Status: {debugStats?.isEnabled ? '✅ Enabled' : '❌ Disabled'}</span>
+          <span>Total Sessions: {debugStats?.totalSessions || 0}</span>
+          <span>Current Session Entries: {debugStats?.currentSessionEntries || 0}</span>
+          {debugStats?.currentSessionId && (
             <>
               <span>•</span>
-              <span>Started: {(currentSession.startTime instanceof Date ? currentSession.startTime : new Date(currentSession.startTime)).toLocaleTimeString()}</span>
-              {currentSession.endTime && (
-                <span>Ended: {(currentSession.endTime instanceof Date ? currentSession.endTime : new Date(currentSession.endTime)).toLocaleTimeString()}</span>
-              )}
+              <span>Session ID: {debugStats.currentSessionId}</span>
             </>
           )}
         </div>
       </div>
 
       {/* Debug Panel */}
-      {currentSessionId && currentSession ? (
-        <DebugLLMPanel
-          session={currentSession}
-          onClearSession={() => handleClearSession(currentSession.id)}
-          isRealTime={isRealTime}
-        />
+      {entries.length > 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">LLM Debug Entries</h3>
+          <div className="space-y-4">
+            {entries.map((entry, index) => (
+              <div key={entry.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      entry.status === 'success' ? 'bg-green-100 text-green-800' :
+                      entry.status === 'error' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {entry.status}
+                    </span>
+                    <span className="text-sm font-medium text-gray-700">{entry.type}</span>
+                    <span className="text-sm text-gray-500">{entry.request.model}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {entry.timestamp.toLocaleTimeString()}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Request</h4>
+                    <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded max-h-32 overflow-y-auto">
+                      <div><strong>System:</strong> {entry.request.systemPrompt.substring(0, 100)}...</div>
+                      {entry.request.messages.length > 0 && (
+                        <div><strong>Messages:</strong> {entry.request.messages.length} messages</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Response</h4>
+                    <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded max-h-32 overflow-y-auto">
+                      {entry.status === 'success' ? (
+                        <div>{entry.response.content.substring(0, 150)}...</div>
+                      ) : entry.error ? (
+                        <div className="text-red-600">{entry.error}</div>
+                      ) : (
+                        <div className="text-yellow-600">Pending...</div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {entry.response.processingTime}ms
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
           <Bug className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Session Selected</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Debug Data Available</h3>
           <p className="text-gray-600 mb-4">
-            {sessions.length === 0
-              ? 'No debug sessions available. Start a conversation to create a debug session.'
-              : 'Select a session from the dropdown above to view debug information.'}
+            {debugStats?.isEnabled
+              ? 'Debug capture is enabled. LLM interactions will appear here when they occur.'
+              : 'Debug capture is disabled. Enable it in the admin panel to see LLM interactions.'}
           </p>
-          {sessions.length === 0 && (
-            <div className="text-sm text-gray-500">
-              Debug sessions are created automatically when you start conversations with the AI.
-            </div>
-          )}
+          <div className="text-sm text-gray-500">
+            Try making some API calls to /api/chat/completions to generate debug data.
+          </div>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ import { ERROR_MESSAGES } from './system-prompts';
 import { db } from './database';
 import * as schema from './database/schema';
 import { eq, and } from 'drizzle-orm';
-import { debugLLMServiceServer } from './debug-llm-service-server';
+import { debugDatabaseService } from './debug-database-service';
 
 export interface ClaudeConfig {
   model: string;
@@ -100,8 +100,8 @@ export class EnhancedClaudeService {
       const searchTime = Date.now() - searchStart;
       
       // Capture knowledge search debug info
-      if (debugLLMServiceServer.isDebugEnabledSync()) {
-        debugLLMServiceServer.captureKnowledgeSearch(
+      if (debugDatabaseService.isDebugEnabledSync()) {
+        await debugDatabaseService.captureKnowledgeSearch(
           userMessage,
           searchResults.map(r => r.article),
           searchTime
@@ -125,8 +125,8 @@ Use this context to provide informed, specific advice while maintaining your war
         : basePrompt;
 
       // Start debug tracking for RAG request
-      if (debugLLMServiceServer.isDebugEnabledSync()) {
-        debugEntryId = debugLLMServiceServer.captureClaudeRequest(
+      if (debugDatabaseService.isDebugEnabledSync()) {
+        debugEntryId = await debugDatabaseService.captureClaudeRequest(
           messages,
           enhancedPrompt,
           this.config.model,
@@ -142,8 +142,8 @@ Use this context to provide informed, specific advice while maintaining your war
       const processingTime = Date.now() - startTime;
 
       // Complete debug tracking
-      if (debugLLMServiceServer.isDebugEnabledSync() && debugEntryId) {
-        debugLLMServiceServer.completeRequest(debugEntryId, {
+      if (debugDatabaseService.isDebugEnabledSync() && debugEntryId) {
+        await debugDatabaseService.completeRequest(debugEntryId, {
           content: response,
           citedArticles: searchResults.map(r => r.article),
           processingTime
@@ -159,8 +159,8 @@ Use this context to provide informed, specific advice while maintaining your war
       const processingTime = Date.now() - startTime;
       
       // Mark debug request as failed
-      if (debugLLMServiceServer.isDebugEnabledSync() && debugEntryId) {
-        debugLLMServiceServer.failRequest(
+      if (debugDatabaseService.isDebugEnabledSync() && debugEntryId) {
+        await debugDatabaseService.failRequest(
           debugEntryId,
           error instanceof Error ? error.message : 'Unknown error',
           processingTime
@@ -182,8 +182,8 @@ Use this context to provide informed, specific advice while maintaining your war
 
     try {
       // Start debug tracking for standard Claude request
-      if (debugLLMServiceServer.isDebugEnabledSync()) {
-        debugEntryId = debugLLMServiceServer.captureClaudeRequest(
+      if (debugDatabaseService.isDebugEnabledSync()) {
+        debugEntryId = await debugDatabaseService.captureClaudeRequest(
           messages,
           systemPrompt || this.config.systemPrompt,
           this.config.model,
@@ -217,8 +217,8 @@ Use this context to provide informed, specific advice while maintaining your war
         const processingTime = Date.now() - startTime;
 
         // Complete debug tracking
-        if (debugLLMServiceServer.isDebugEnabledSync() && debugEntryId) {
-          debugLLMServiceServer.completeRequest(debugEntryId, {
+        if (debugDatabaseService.isDebugEnabledSync() && debugEntryId) {
+          await debugDatabaseService.completeRequest(debugEntryId, {
             content: content.text,
             usage: { tokens: response.usage?.output_tokens || 0 },
             processingTime
@@ -234,8 +234,8 @@ Use this context to provide informed, specific advice while maintaining your war
       const processingTime = Date.now() - startTime;
       
       // Mark debug request as failed
-      if (debugLLMServiceServer.isDebugEnabledSync() && debugEntryId) {
-        debugLLMServiceServer.failRequest(
+      if (debugDatabaseService.isDebugEnabledSync() && debugEntryId) {
+        await debugDatabaseService.failRequest(
           debugEntryId,
           error instanceof Error ? error.message : 'Unknown error',
           processingTime

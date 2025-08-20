@@ -109,6 +109,46 @@ export const sessionReports = sqliteTable('session_reports', {
   generatedAt: text('generated_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
 
+// Debug LLM Sessions Table
+export const debugSessions = sqliteTable('debug_sessions', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  startTime: text('start_time').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  endTime: text('end_time'),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+// Debug LLM Entries Table
+export const debugEntries = sqliteTable('debug_entries', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  timestamp: text('timestamp').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  type: text('type').notNull(), // 'claude' | 'knowledge-search' | 'rag'
+  status: text('status').notNull(), // 'pending' | 'success' | 'error'
+  
+  // Request data (stored as JSON)
+  requestModel: text('request_model').notNull(),
+  requestSystemPrompt: text('request_system_prompt'),
+  requestMessages: text('request_messages'), // JSON string
+  requestTemperature: real('request_temperature'),
+  requestMaxTokens: integer('request_max_tokens'),
+  requestKnowledgeContext: text('request_knowledge_context'),
+  requestOtherParams: text('request_other_params'), // JSON string
+  
+  // Response data
+  responseContent: text('response_content'),
+  responseProcessingTime: integer('response_processing_time'), // milliseconds
+  responseTokens: integer('response_tokens'),
+  responseCitedArticles: text('response_cited_articles'), // JSON string
+  
+  // Error data
+  errorMessage: text('error_message'),
+  
+  // Metadata
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // Unified conversation sessions (new session system)
 export const conversationSessions = sqliteTable('conversation_sessions', {
   id: text('id').primaryKey(),
@@ -206,6 +246,12 @@ export type NewConversationSession = typeof conversationSessions.$inferInsert;
 
 export type ConversationMessage = typeof conversationMessages.$inferSelect;
 export type NewConversationMessage = typeof conversationMessages.$inferInsert;
+
+export type DebugSession = typeof debugSessions.$inferSelect;
+export type NewDebugSession = typeof debugSessions.$inferInsert;
+
+export type DebugEntry = typeof debugEntries.$inferSelect;
+export type NewDebugEntry = typeof debugEntries.$inferInsert;
 
 export type OpeningMessage = typeof openingMessages.$inferSelect;
 export type NewOpeningMessage = typeof openingMessages.$inferInsert;
