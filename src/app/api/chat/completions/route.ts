@@ -246,31 +246,68 @@ export async function POST(request: NextRequest) {
               
               // Use standard QA flow for structured conversations
               const claudeService = getClaudeService();
-              const qaPrompt = await educationalSessionService.getSystemPrompt('qa');
-              const systemPrompt = qaPrompt?.content || 'You are a helpful financial advisor assistant.';
               
-              console.log('🎯 [STRUCTURED] Generating structured response using QA prompt');
+              console.log('🎯 [STRUCTURED] Generating structured response with knowledge base');
               
-              responseContent = await claudeService.sendMessage(conversationHistory, systemPrompt);
-              
-              console.log('✅ [STRUCTURED] Generated structured response', {
-                responseLength: responseContent.length
-              });
-              
-            } else {
-              console.log('🔹 [OPEN-ENDED] Using Claude for response generation');
-              
-              // Use Claude service for open-ended conversation
-              const claudeService = getClaudeService();
-              const claudeMessages = messages.map((msg: any) => ({
-                id: `msg_${Date.now()}`,
+              // Convert conversation history to Message format for sendMessageWithContext
+              const claudeMessages = conversationHistory.map((msg: any, idx: number) => ({
+                id: `msg_${idx}`,
                 content: msg.content,
-                sender: msg.role === 'user' ? 'user' : 'assistant',
+                sender: msg.role === 'user' ? 'user' as const : 'assistant' as const,
                 timestamp: new Date()
               }));
               
-              responseContent = await claudeService.sendMessage(claudeMessages);
-              console.log('✅ [OPEN-ENDED] Generated Claude response');
+              // Use RAG-enhanced response with knowledge base
+              const ragResponse = await claudeService.sendMessageWithContext(
+                claudeMessages,
+                userInput
+              );
+              
+              responseContent = ragResponse.response;
+              
+              // Log if knowledge base articles were found
+              if (ragResponse.citedArticles && ragResponse.citedArticles.length > 0) {
+                console.log('📚 [KNOWLEDGE-BASE] Found relevant articles:', 
+                  ragResponse.citedArticles.map(a => a.title)
+                );
+              }
+              
+              console.log('✅ [STRUCTURED] Generated structured response with knowledge base', {
+                responseLength: responseContent.length,
+                articlesUsed: ragResponse.citedArticles?.length || 0
+              });
+              
+            } else {
+              console.log('🔹 [OPEN-ENDED] Using Claude for response generation with knowledge base');
+              
+              // Use Claude service for open-ended conversation
+              const claudeService = getClaudeService();
+              const claudeMessages = messages.map((msg: any, idx: number) => ({
+                id: `msg_${idx}`,
+                content: msg.content,
+                sender: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+                timestamp: new Date()
+              }));
+              
+              // Use RAG-enhanced response with knowledge base
+              const ragResponse = await claudeService.sendMessageWithContext(
+                claudeMessages,
+                userInput
+              );
+              
+              responseContent = ragResponse.response;
+              
+              // Log if knowledge base articles were found
+              if (ragResponse.citedArticles && ragResponse.citedArticles.length > 0) {
+                console.log('📚 [KNOWLEDGE-BASE] Found relevant articles:', 
+                  ragResponse.citedArticles.map(a => a.title)
+                );
+              }
+              
+              console.log('✅ [OPEN-ENDED] Generated Claude response with knowledge base', {
+                responseLength: responseContent.length,
+                articlesUsed: ragResponse.citedArticles?.length || 0
+              });
             }
             
           } catch (error) {
