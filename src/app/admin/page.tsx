@@ -717,6 +717,7 @@ The lesson context will be automatically added to this prompt when used.`;
       voiceDescription: formData.get('voiceDescription') as string,
       personalizationEnabled: formData.has('personalizationEnabled'),
       conversationAware: formData.has('conversationAware'),
+      debugLlmEnabled: formData.has('debugLlmEnabled'),
     };
 
     try {
@@ -1187,6 +1188,22 @@ The lesson context will be automatically added to this prompt when used.`;
                   </div>
                   <p className="text-sm text-gray-500">
                     When enabled, the system will generate smooth transitions between educational content chunks based on conversation history
+                  </p>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="debugLlmEnabled"
+                      name="debugLlmEnabled"
+                      defaultChecked={settings?.debugLlmEnabled || false}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="debugLlmEnabled" className="ml-2 block text-sm text-gray-900">
+                      Enable LLM Debug Capture
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    When enabled, the system will capture and monitor all LLM interactions for debugging and analysis
                   </p>
 
                   <button

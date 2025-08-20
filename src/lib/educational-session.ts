@@ -313,6 +313,7 @@ Transition:`;
       personalizationEnabled: Boolean(dbSettings.personalizationEnabled),
       conversationAware: Boolean(dbSettings.conversationAware),
       useStructuredConversation: Boolean(dbSettings.useStructuredConversation),
+      debugLlmEnabled: Boolean(dbSettings.debugLlmEnabled),
       baseReportPath: dbSettings.baseReportPath,
       baseReportTemplate: dbSettings.baseReportTemplate,
       updatedAt: new Date(dbSettings.updatedAt),

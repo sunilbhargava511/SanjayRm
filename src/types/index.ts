@@ -85,6 +85,7 @@ export interface AdminSettings {
   personalizationEnabled: boolean;
   conversationAware: boolean; // Enable conversation-aware responses
   useStructuredConversation: boolean;
+  debugLlmEnabled: boolean; // Enable LLM debug capture
   baseReportPath?: string;
   baseReportTemplate?: Uint8Array; // PDF template binary data
   updatedAt: Date;

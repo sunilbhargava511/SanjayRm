@@ -45,6 +45,7 @@ export async function PUT(request: NextRequest) {
       'personalizationEnabled',
       'conversationAware',
       'useStructuredConversation',
+      'debugLlmEnabled',
       'baseReportPath'
     ];
     

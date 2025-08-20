@@ -47,6 +47,7 @@ export const adminSettings = sqliteTable('admin_settings', {
   personalizationEnabled: integer('personalization_enabled', { mode: 'boolean' }).default(false),
   conversationAware: integer('conversation_aware', { mode: 'boolean' }).default(true), // Enable smooth lead-ins by default
   useStructuredConversation: integer('use_structured_conversation', { mode: 'boolean' }).default(true),
+  debugLlmEnabled: integer('debug_llm_enabled', { mode: 'boolean' }).default(false), // Enable LLM debug capture
   baseReportPath: text('base_report_path'),
   baseReportTemplate: blob('base_report_template'), // PDF template as binary data
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),

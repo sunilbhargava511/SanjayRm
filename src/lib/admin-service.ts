@@ -32,6 +32,7 @@ export class AdminService {
         voiceDescription: updates.voiceDescription || 'Professional voice',
         personalizationEnabled: updates.personalizationEnabled || false,
         conversationAware: updates.conversationAware !== undefined ? updates.conversationAware : true,
+        debugLlmEnabled: updates.debugLlmEnabled || false,
         baseReportPath: updates.baseReportPath,
         updatedAt: new Date().toISOString(),
       });
@@ -183,6 +184,7 @@ export class AdminService {
       personalizationEnabled: Boolean(dbSettings.personalizationEnabled),
       conversationAware: Boolean(dbSettings.conversationAware),
       useStructuredConversation: Boolean(dbSettings.useStructuredConversation),
+      debugLlmEnabled: Boolean(dbSettings.debugLlmEnabled),
       baseReportPath: dbSettings.baseReportPath,
       baseReportTemplate: dbSettings.baseReportTemplate,
       updatedAt: new Date(dbSettings.updatedAt),
