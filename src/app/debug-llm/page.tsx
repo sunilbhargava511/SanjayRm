@@ -166,9 +166,9 @@ export default function DebugLLMPage() {
           {currentSession && (
             <>
               <span>•</span>
-              <span>Started: {currentSession.startTime.toLocaleTimeString()}</span>
+              <span>Started: {(currentSession.startTime instanceof Date ? currentSession.startTime : new Date(currentSession.startTime)).toLocaleTimeString()}</span>
               {currentSession.endTime && (
-                <span>Ended: {currentSession.endTime.toLocaleTimeString()}</span>
+                <span>Ended: {(currentSession.endTime instanceof Date ? currentSession.endTime : new Date(currentSession.endTime)).toLocaleTimeString()}</span>
               )}
             </>
           )}

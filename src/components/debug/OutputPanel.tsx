@@ -181,7 +181,7 @@ export default function OutputPanel({ entry }: OutputPanelProps) {
         {/* Request Info */}
         <div className="text-xs text-gray-400 pt-2 border-t">
           <div>Request ID: {entry.id}</div>
-          <div>Timestamp: {entry.timestamp.toLocaleString()}</div>
+          <div>Timestamp: {(entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)).toLocaleString()}</div>
           <div>Type: {entry.type}</div>
         </div>
       </div>

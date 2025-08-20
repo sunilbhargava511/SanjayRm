@@ -91,7 +91,7 @@ export default function DebugLLMPanel({ session, onClearSession, isRealTime }: D
                        'Claude Request'}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {entry.timestamp.toLocaleTimeString()} • 
+                      {(entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)).toLocaleTimeString()} • 
                       {entry.status === 'success' && ` ${entry.response.processingTime}ms`}
                       {entry.status === 'error' && ' Failed'}
                       {entry.status === 'pending' && ' Processing...'}

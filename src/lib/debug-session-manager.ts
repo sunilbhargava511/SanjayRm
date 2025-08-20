@@ -269,7 +269,18 @@ export class DebugSessionManager {
       const data = localStorage.getItem(this.storageKey);
       if (data) {
         const parsed = JSON.parse(data, this.dateReviver);
-        this.sessions = parsed.sessions || [];
+        
+        // Ensure all sessions have proper Date objects
+        this.sessions = (parsed.sessions || []).map((session: any) => ({
+          ...session,
+          startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
+          endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : undefined,
+          entries: (session.entries || []).map((entry: any) => ({
+            ...entry,
+            timestamp: typeof entry.timestamp === 'string' ? new Date(entry.timestamp) : entry.timestamp
+          }))
+        }));
+        
         this.currentSessionId = parsed.currentSessionId || null;
         console.log(`[Debug] Loaded ${this.sessions.length} sessions from storage`);
       }
