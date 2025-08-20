@@ -140,6 +140,76 @@ export async function POST(request: NextRequest) {
       console.log('✅ opening_messages table already exists');
     }
     
+    // Check if debug_sessions table exists
+    const debugSessionsExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='debug_sessions'
+    `).all();
+    
+    if (debugSessionsExists.length === 0) {
+      console.log('Creating debug_sessions table...');
+      sqlite.exec(`
+        CREATE TABLE debug_sessions (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          start_time TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          end_time TEXT,
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created debug_sessions table');
+    } else {
+      console.log('✅ debug_sessions table already exists');
+    }
+    
+    // Check if debug_entries table exists
+    const debugEntriesExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='debug_entries'
+    `).all();
+    
+    if (debugEntriesExists.length === 0) {
+      console.log('Creating debug_entries table...');
+      sqlite.exec(`
+        CREATE TABLE debug_entries (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          timestamp TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          request_model TEXT NOT NULL,
+          request_system_prompt TEXT,
+          request_messages TEXT,
+          request_temperature REAL,
+          request_max_tokens INTEGER,
+          request_knowledge_context TEXT,
+          request_other_params TEXT,
+          response_content TEXT,
+          response_processing_time INTEGER,
+          response_tokens INTEGER,
+          response_cited_articles TEXT,
+          error_message TEXT,
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created debug_entries table');
+    } else {
+      console.log('✅ debug_entries table already exists');
+    }
+    
+    // Check if debugLlmEnabled column exists in admin_settings
+    const adminTableInfo = sqlite.prepare(`PRAGMA table_info(admin_settings)`).all();
+    const hasDebugLlmColumn = adminTableInfo.some((col: any) => col.name === 'debug_llm_enabled');
+    
+    if (!hasDebugLlmColumn) {
+      console.log('Adding debug_llm_enabled column to admin_settings table...');
+      sqlite.exec(`ALTER TABLE admin_settings ADD COLUMN debug_llm_enabled INTEGER DEFAULT 0;`);
+      console.log('✅ Added debug_llm_enabled column');
+    } else {
+      console.log('✅ debug_llm_enabled column already exists');
+    }
+    
     console.log('Database migration completed successfully');
     
     return NextResponse.json({
