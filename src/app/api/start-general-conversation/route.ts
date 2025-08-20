@@ -2,9 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminService } from '@/lib/admin-service';
 import { getClaudeService } from '@/lib/claude-enhanced';
 
+// Helper function to convert numbers to ordinals (1st, 2nd, 3rd, etc.)
+function getOrdinalNumber(num: number): string {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = num % 100;
+  return num + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+}
+
 export async function POST(request: NextRequest) {
   try {
-    console.log('Starting general conversation with ElevenLabs...');
+    // Parse request body to get optional lesson context
+    const body = await request.json();
+    const { lessonId, lessonTitle, orderIndex } = body || {};
+    
+    console.log('Starting general conversation with ElevenLabs...', {
+      hasLessonContext: !!lessonId,
+      lessonId,
+      lessonTitle,
+      orderIndex
+    });
     
     // 1. Get the general Q&A prompt from database
     const prompts = await adminService.getAllSystemPrompts();
@@ -27,12 +43,24 @@ export async function POST(request: NextRequest) {
     // 3. Pass the prompt to Claude to generate the first message
     const claudeService = getClaudeService();
     
+    // Build context-aware intro prompt
+    let conversationContext = '';
+    if (lessonId && lessonTitle && orderIndex !== undefined) {
+      conversationContext = `This is a Q&A session after completing "${lessonTitle}" which is the ${getOrdinalNumber(orderIndex + 1)} lesson.`;
+    } else {
+      conversationContext = 'This is the start of a general financial counseling conversation.';
+    }
+    
     const introPrompt = `${generalQAPrompt.content}
 
-This is the start of a new financial counseling conversation. Generate a warm, welcoming introduction message that:
+${conversationContext} Generate a warm, welcoming introduction message that:
 - Introduces you as Sanjay, an AI financial advisor
 - Creates a comfortable, safe space for discussion
-- Invites the user to share what's on their mind financially
+${lessonId 
+  ? `- Acknowledges they just completed the lesson and invites questions about it
+- Also welcomes any other financial topics they'd like to discuss` 
+  : '- Invites the user to share what\'s on their mind financially'
+}
 - Keep it under 100 words
 - Write for voice synthesis (avoid symbols, spell out numbers)
 
@@ -85,8 +113,7 @@ Generate just the introduction message, nothing else.`;
       firstMessageLength: firstMessage.length
     });
 
-    // 5. Store the prompt ID for use in webhook callbacks
-    // We'll store this in the conversation metadata or pass it through the webhook
+    // 5. Store the prompt ID and lesson context for use in webhook callbacks
     return NextResponse.json({
       success: true,
       conversation: {
@@ -94,7 +121,14 @@ Generate just the introduction message, nothing else.`;
         conversationId: conversationData.conversationId,
         expiresAt: conversationData.expiresAt,
         promptId: generalQAPrompt.id, // Store for webhook use
-        type: 'general_qa'
+        type: lessonId ? 'lesson_qa' : 'general_qa',
+        // Include lesson context for webhook
+        lessonContext: lessonId ? {
+          lessonId,
+          lessonTitle,
+          orderIndex,
+          conversationState: `Q&A after completing "${lessonTitle}" (${getOrdinalNumber(orderIndex + 1)} lesson)`
+        } : null
       },
       firstMessage: firstMessage.trim(),
       voiceSettings: {
@@ -118,15 +152,25 @@ Generate just the introduction message, nothing else.`;
 
 export async function GET() {
   return NextResponse.json({
-    message: 'General Conversation Starter Endpoint',
-    description: 'POST to start a general financial counseling conversation with ElevenLabs',
+    message: 'Unified Conversation Starter Endpoint',
+    description: 'POST to start a general financial counseling conversation with ElevenLabs, with optional lesson context',
+    parameters: {
+      lessonId: 'string (optional) - ID of completed lesson for Q&A context',
+      lessonTitle: 'string (optional) - Title of completed lesson',
+      orderIndex: 'number (optional) - Zero-based lesson order for "nth lesson" context'
+    },
     flow: [
       '1. Retrieves general Q&A prompt from database',
-      '2. Passes prompt to Claude to generate welcoming first message',
-      '3. Creates ElevenLabs conversation with Claude-generated intro',
-      '4. Returns conversation details for frontend integration'
+      '2. Builds context-aware intro prompt based on lesson parameters',
+      '3. Passes prompt to Claude to generate appropriate introduction message',
+      '4. Creates ElevenLabs conversation with Claude-generated intro',
+      '5. Returns conversation details with lesson context for webhook integration'
     ],
-    webhookIntegration: 'Use promptId in webhook to maintain context',
+    conversationStates: {
+      general: 'No lesson parameters - general financial conversation',
+      lessonQA: 'With lesson parameters - post-lesson Q&A session'
+    },
+    webhookIntegration: 'Use promptId and lessonContext in webhook to maintain appropriate context',
     requirements: [
       'General Q&A prompt configured in admin panel',
       'ElevenLabs API credentials',

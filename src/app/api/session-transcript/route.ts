@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'link_elevenlabs': {
-        const { sessionId, conversationId } = data;
+        const { sessionId, conversationId, lessonContext } = data;
         
         if (!sessionId || !conversationId) {
           return NextResponse.json(
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        await sessionTranscriptService.linkElevenLabsConversation(sessionId, conversationId);
+        await sessionTranscriptService.linkElevenLabsConversation(sessionId, conversationId, lessonContext);
 
         return NextResponse.json({ 
           success: true, 

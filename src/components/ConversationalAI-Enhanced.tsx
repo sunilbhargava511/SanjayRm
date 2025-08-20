@@ -12,6 +12,12 @@ interface ConversationalAIProps {
   className?: string;
   skipOpeningMessage?: boolean; // Skip playing the opening message (useful for lesson Q&A)
   autoStart?: boolean; // Auto-start the conversation on mount
+  lessonContext?: {
+    lessonId: string;
+    lessonTitle: string;
+    orderIndex: number;
+    conversationState: string;
+  }; // Optional lesson context for post-lesson Q&A
 }
 
 type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -27,7 +33,8 @@ export default function ConversationalAI({
   onError,
   className = '',
   skipOpeningMessage = false,
-  autoStart = false
+  autoStart = false,
+  lessonContext
 }: ConversationalAIProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
   const [isMuted, setIsMuted] = useState(false);
@@ -60,7 +67,7 @@ export default function ConversationalAI({
       if (details.conversationId) {
         conversationIdRef.current = details.conversationId;
         
-        // Link ElevenLabs conversation to our session
+        // Link ElevenLabs conversation to our session with optional lesson context
         try {
           await fetch('/api/session-transcript', {
             method: 'POST',
@@ -68,10 +75,11 @@ export default function ConversationalAI({
             body: JSON.stringify({
               action: 'link_elevenlabs',
               sessionId,
-              conversationId: details.conversationId
+              conversationId: details.conversationId,
+              lessonContext
             })
           });
-          console.log('[Enhanced ConversationalAI] Session linked to ElevenLabs conversation');
+          console.log('[Enhanced ConversationalAI] Session linked to ElevenLabs conversation', lessonContext ? 'with lesson context' : '');
         } catch (error) {
           console.error('[Enhanced ConversationalAI] Failed to link session:', error);
         }

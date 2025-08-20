@@ -109,9 +109,16 @@ export class SessionTranscriptService {
     await this.updateSession(sessionId, { lessonPhase: phase });
   }
 
-  // Link ElevenLabs conversation
-  async linkElevenLabsConversation(sessionId: string, conversationId: string): Promise<void> {
-    await this.updateSession(sessionId, { elevenlabsConversationId: conversationId });
+  // Link ElevenLabs conversation with optional lesson context
+  async linkElevenLabsConversation(sessionId: string, conversationId: string, lessonContext?: any): Promise<void> {
+    const updates: any = { elevenlabsConversationId: conversationId };
+    
+    // If lesson context is provided, store it in session metadata
+    if (lessonContext) {
+      updates.metadata = JSON.stringify({ lessonContext });
+    }
+    
+    await this.updateSession(sessionId, updates);
   }
 
   // Add message to session transcript
