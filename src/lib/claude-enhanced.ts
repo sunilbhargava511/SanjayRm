@@ -5,6 +5,7 @@ import { ERROR_MESSAGES } from './system-prompts';
 import { db } from './database';
 import * as schema from './database/schema';
 import { eq, and } from 'drizzle-orm';
+import { debugLLMService } from './debug-llm-service';
 
 export interface ClaudeConfig {
   model: string;
@@ -89,9 +90,23 @@ export class EnhancedClaudeService {
     messages: Message[],
     userMessage: string
   ): Promise<RAGResponse> {
+    const startTime = Date.now();
+    let debugEntryId = '';
+
     try {
       // Search for relevant articles
+      const searchStart = Date.now();
       const searchResults = await knowledgeSearch.findRelevantArticles(userMessage, 3);
+      const searchTime = Date.now() - searchStart;
+      
+      // Capture knowledge search debug info
+      if (debugLLMService.isDebugEnabled()) {
+        debugLLMService.captureKnowledgeSearch(
+          userMessage,
+          searchResults.map(r => r.article),
+          searchTime
+        );
+      }
       
       // Generate context from search results
       const contextSummary = knowledgeSearch.generateContextSummary(searchResults);
@@ -109,8 +124,31 @@ ${contextSummary}
 Use this context to provide informed, specific advice while maintaining your warm, conversational tone.`
         : basePrompt;
 
+      // Start debug tracking for RAG request
+      if (debugLLMService.isDebugEnabled()) {
+        debugEntryId = debugLLMService.captureClaudeRequest(
+          messages,
+          enhancedPrompt,
+          this.config.model,
+          this.config.temperature,
+          this.config.maxTokens,
+          contextSummary,
+          { ragMode: true, articlesFound: searchResults.length }
+        );
+      }
+
       // Get Claude's response
       const response = await this.sendMessage(messages, enhancedPrompt);
+      const processingTime = Date.now() - startTime;
+
+      // Complete debug tracking
+      if (debugLLMService.isDebugEnabled() && debugEntryId) {
+        debugLLMService.completeRequest(debugEntryId, {
+          content: response,
+          citedArticles: searchResults.map(r => r.article),
+          processingTime
+        });
+      }
 
       return {
         response,
@@ -118,6 +156,17 @@ Use this context to provide informed, specific advice while maintaining your war
         searchResults
       };
     } catch (error) {
+      const processingTime = Date.now() - startTime;
+      
+      // Mark debug request as failed
+      if (debugLLMService.isDebugEnabled() && debugEntryId) {
+        debugLLMService.failRequest(
+          debugEntryId,
+          error instanceof Error ? error.message : 'Unknown error',
+          processingTime
+        );
+      }
+      
       console.error('Error in RAG-enhanced conversation:', error);
       throw new Error(`RAG-enhanced conversation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -128,7 +177,23 @@ Use this context to provide informed, specific advice while maintaining your war
     messages: Message[], 
     systemPrompt?: string
   ): Promise<string> {
+    const startTime = Date.now();
+    let debugEntryId = '';
+
     try {
+      // Start debug tracking for standard Claude request
+      if (debugLLMService.isDebugEnabled()) {
+        debugEntryId = debugLLMService.captureClaudeRequest(
+          messages,
+          systemPrompt || this.config.systemPrompt,
+          this.config.model,
+          this.config.temperature,
+          this.config.maxTokens,
+          undefined, // No knowledge context for standard requests
+          { ragMode: false }
+        );
+      }
+
       const formattedMessages = messages.map(msg => ({
         role: (msg.type || msg.sender) === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.content
@@ -149,12 +214,34 @@ Use this context to provide informed, specific advice while maintaining your war
 
       const content = response.content[0];
       if (content && content.type === 'text') {
+        const processingTime = Date.now() - startTime;
+
+        // Complete debug tracking
+        if (debugLLMService.isDebugEnabled() && debugEntryId) {
+          debugLLMService.completeRequest(debugEntryId, {
+            content: content.text,
+            usage: { tokens: response.usage?.output_tokens || 0 },
+            processingTime
+          });
+        }
+        
         return content.text;
       }
       
       console.error('Unexpected response format:', content);
       throw new Error('Unexpected response format from Claude');
     } catch (error) {
+      const processingTime = Date.now() - startTime;
+      
+      // Mark debug request as failed
+      if (debugLLMService.isDebugEnabled() && debugEntryId) {
+        debugLLMService.failRequest(
+          debugEntryId,
+          error instanceof Error ? error.message : 'Unknown error',
+          processingTime
+        );
+      }
+      
       console.error('Claude API error:', error);
       throw new Error(`Failed to get response from Claude: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

@@ -28,7 +28,8 @@ import {
   Volume2,
   Zap,
   Award,
-  CheckCircle
+  CheckCircle,
+  Bug
 } from 'lucide-react';
 import ConversationPanel from './ConversationPanel';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
@@ -398,6 +399,13 @@ export default function EnhancedUnifiedSessionInterface() {
                     >
                       <Settings className="w-4 h-4" />
                       Admin
+                    </a>
+                    <a
+                      href="/debug-llm"
+                      className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-colors"
+                    >
+                      <Bug className="w-4 h-4" />
+                      Debug LLM
                     </a>
                   </div>
                 </nav>

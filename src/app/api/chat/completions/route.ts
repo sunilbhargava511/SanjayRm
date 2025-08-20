@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getClaudeService } from '@/lib/claude-enhanced';
 import { educationalSessionService } from '@/lib/educational-session';
 import { sessionManager } from '@/lib/elevenlabs-session-manager';
+import { debugSessionManager } from '@/lib/debug-session-manager';
 import fs from 'fs';
 import path from 'path';
 
@@ -213,6 +214,16 @@ export async function POST(request: NextRequest) {
         // Get the last user message
         const messages = body.messages || [];
         const lastMessage = messages[messages.length - 1];
+        
+        // Create debug session for new conversations (when there's only user + assistant initial messages)
+        if (messages.length <= 2 && conversationId) {
+          const firstUserMessage = messages.find((m: any) => m.role === 'user');
+          if (firstUserMessage) {
+            const sessionTitle = firstUserMessage.content.substring(0, 50);
+            debugSessionManager.createNewSession(sessionTitle);
+            console.log('🐛 [DEBUG] Created new debug session for conversation:', conversationId);
+          }
+        }
         
         // Default response
         let responseContent = "Hello! I'm Sanjay, your AI financial advisor. I'm here to help you build a healthier relationship with money and work toward your financial goals. What would you like to talk about today?";
