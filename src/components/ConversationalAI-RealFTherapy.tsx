@@ -18,6 +18,9 @@ type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'conne
 /**
  * ConversationalAI Component using REAL FTherapy Pattern
  * Based on actual FTherapy source code with useConversation hook
+ * 
+ * @deprecated This component uses the legacy educational session/chunk system.
+ * New implementations should use the lesson-based system with qaStartService.
  */
 export default function ConversationalAI({
   onMessage,
@@ -95,25 +98,46 @@ export default function ConversationalAI({
       setIsConnecting(false);
     },
     onMessage: (message) => {
-      console.log('[Real FTherapy] Message received:', message);
+      console.log('🔍 [FRONTEND-DEBUG] Message received:', {
+        source: message.source,
+        messageLength: message.message?.length,
+        content: message.message?.substring(0, 100) + '...',
+        timestamp: new Date().toISOString()
+      });
       
-      // Store message in session
-      if (currentSession) {
-        const messageData: Message = {
-          id: `msg_${Date.now()}_${message.source}`,
-          content: message.message,
-          sender: message.source === 'user' ? 'user' : 'assistant',
-          timestamp: new Date()
-        };
-        
-        EnhancedSessionStorage.addMessage(currentSession.id, messageData);
-        
-        // Notify parent component
-        onMessage?.({
-          role: message.source === 'user' ? 'user' : 'assistant',
-          content: message.message,
-          timestamp: new Date()
-        });
+      try {
+        // Store message in session
+        if (currentSession) {
+          const messageData: Message = {
+            id: `msg_${Date.now()}_${message.source}`,
+            content: message.message,
+            sender: message.source === 'user' ? 'user' : 'assistant',
+            timestamp: new Date()
+          };
+          
+          EnhancedSessionStorage.addMessage(currentSession.id, messageData);
+          console.log('✅ [FRONTEND-DEBUG] Message stored in session:', messageData.id);
+          
+          // Refresh current session state to ensure UI updates
+          const updatedSession = EnhancedSessionStorage.getSession(currentSession.id);
+          if (updatedSession) {
+            setCurrentSession(updatedSession);
+          }
+          
+          // Notify parent component
+          onMessage?.({
+            role: message.source === 'user' ? 'user' : 'assistant',
+            content: message.message,
+            timestamp: new Date()
+          });
+          console.log('✅ [FRONTEND-DEBUG] Parent component notified of message');
+        } else {
+          console.error('❌ [FRONTEND-DEBUG] No current session to store message');
+          setError('Session lost - please restart conversation');
+        }
+      } catch (error) {
+        console.error('❌ [FRONTEND-DEBUG] Error handling message:', error);
+        setError('Failed to process message - conversation may be interrupted');
       }
     },
     onError: (error) => {
@@ -208,9 +232,10 @@ export default function ConversationalAI({
       // Store session ID for use throughout the conversation
       setSessionId(educationalSessionId);
       
-      // Get the chunk content and question to return as firstMessage
+      // Get the chunk content to return as firstMessage (legacy chunk system)
       const chunkContent = data.chunk.content;
-      const chunkQuestion = data.chunk.question;
+      // Note: chunk.question field removed - using generic fallback
+      const chunkQuestion = data.chunk.question || "What are your thoughts on this topic?";
       const firstMessage = `${chunkContent}\n\n${chunkQuestion}`;
       
       // CRITICAL: Mark chunk 1 as delivered since ElevenLabs will speak it as firstMessage
@@ -492,6 +517,20 @@ export default function ConversationalAI({
           <div className="mt-2 text-xs text-red-500 flex items-center justify-center gap-1">
             <AlertCircle className="w-3 h-3" />
             {error}
+          </div>
+        )}
+        
+        {/* Debug Panel - Only show in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-3 bg-gray-100 rounded text-xs text-left">
+            <div className="font-semibold mb-2">Debug Info:</div>
+            <div>Status: {connectionStatus}</div>
+            <div>Session ID: {sessionId || 'None'}</div>
+            <div>Current Session: {currentSession?.id || 'None'}</div>
+            <div>Conversation ID: {conversationIdRef.current || 'None'}</div>
+            <div>Messages: {currentSession?.messages?.length || 0}</div>
+            <div>Is Connecting: {isConnecting ? 'Yes' : 'No'}</div>
+            <div>Auto Started: {hasAutoStarted ? 'Yes' : 'No'}</div>
           </div>
         )}
       </div>

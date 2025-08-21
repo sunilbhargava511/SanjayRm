@@ -57,10 +57,13 @@ interface OpenAIErrorResponse {
 
 interface SessionData {
   sessionId: string;
-  therapistId: string;
-  frontendSessionId: string;
   registeredAt: string;
   lastActivity?: string;
+  messages: any[];
+  metadata?: {
+    therapistId: string;
+    educational_session_id?: string;
+  };
 }
 
 // Session resolution following FTherapy pattern (guide lines 624-647)
@@ -75,11 +78,11 @@ async function resolveSessionId(maxRetries: number = 3): Promise<{ sessionId: st
         const data = await fs.promises.readFile(latestSessionPath, 'utf8');
         const latestSession: SessionData = JSON.parse(data);
         
-        if (latestSession) {
-          console.log(`[Session Resolution] Found session: ${latestSession.frontendSessionId} (attempt ${attempt})`);
+        if (latestSession && latestSession.sessionId) {
+          console.log(`[Session Resolution] Found session: ${latestSession.sessionId} (attempt ${attempt})`);
           return {
-            sessionId: latestSession.frontendSessionId,
-            therapistId: latestSession.therapistId
+            sessionId: latestSession.sessionId,
+            therapistId: latestSession.metadata?.therapistId || 'sanjay-financial-advisor'
           };
         }
       }
