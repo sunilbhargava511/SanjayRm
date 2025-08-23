@@ -16,7 +16,6 @@ export class LessonService {
     videoUrl: string;
     videoSummary: string;
     startMessage?: string;
-    question: string;
     orderIndex?: number;
     prerequisites?: string[];
   }): Promise<Lesson> {
@@ -35,7 +34,6 @@ export class LessonService {
       videoUrl: lessonData.videoUrl,
       videoSummary: lessonData.videoSummary,
       startMessage: lessonData.startMessage,
-      question: lessonData.question,
       orderIndex,
       prerequisites: JSON.stringify(lessonData.prerequisites || []),
       active: true,
@@ -313,7 +311,6 @@ export class LessonService {
       videoUrl: dbLesson.videoUrl,
       videoSummary: dbLesson.videoSummary,
       startMessage: dbLesson.startMessage,
-      question: dbLesson.question,
       orderIndex: dbLesson.orderIndex,
       prerequisites: dbLesson.prerequisites ? JSON.parse(dbLesson.prerequisites) : [],
       active: Boolean(dbLesson.active),

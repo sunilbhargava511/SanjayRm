@@ -1,12 +1,72 @@
 export interface Message {
   id: string;
-  type?: 'user' | 'assistant'; // Make optional for compatibility
+  type?: 'user' | 'assistant' | 'system_event'; // Add system_event type
   sender?: 'user' | 'assistant'; // Keep for backward compatibility
   content: string;
   timestamp: Date;
   isVoice?: boolean;
   rawTranscript?: string; // Original voice transcript before cleanup
   citedArticles?: Article[]; // Add support for cited articles in RAG responses
+  sessionEvent?: SessionEvent; // Include session event data if this is a system event
+}
+
+// Session Event Types
+export type SessionEventType = 
+  | 'session_started'
+  | 'elevenlabs_conversation_started'
+  | 'lesson_started'
+  | 'lesson_qa_started'
+  | 'open_conversation_started';
+
+export interface SessionEventMetadata {
+  // Common fields
+  userId?: string;
+  sessionId: string;
+  timestamp: Date;
+  
+  // Session started specific
+  userAgent?: string;
+  timezone?: string;
+  previousSessionDate?: Date;
+  
+  // ElevenLabs conversation specific  
+  agentId?: string;
+  voiceSettings?: {
+    voiceId: string;
+    stability: number;
+    similarityBoost: number;
+    style: number;
+  };
+  conversationId?: string;
+  
+  // Lesson specific
+  lessonId?: string;
+  lessonTitle?: string;
+  lessonProgress?: string; // e.g., "0/5 sections"
+  difficulty?: string;
+  estimatedDuration?: number;
+  
+  // Q&A specific
+  availableQuestions?: number;
+  questionTypes?: string[];
+  parentLessonId?: string;
+  
+  // Open conversation specific
+  conversationContext?: string;
+  detectedIntent?: string;
+  userMood?: string;
+}
+
+export interface SessionEvent {
+  id: string;
+  type: SessionEventType;
+  title: string;
+  summary: string;
+  timestamp: Date;
+  metadata: SessionEventMetadata;
+  firstMessage?: string; // The initial message/prompt for this event
+  status: 'active' | 'completed' | 'interrupted';
+  icon?: string; // Unicode emoji or icon identifier
 }
 
 export interface Session {
@@ -163,7 +223,6 @@ export interface Lesson {
   videoUrl: string;
   videoSummary: string;
   startMessage?: string; // TTS message played before video
-  question: string; // FirstMessage for Q&A
   orderIndex: number;
   prerequisites: string[]; // Lesson IDs that must be completed first
   active: boolean;

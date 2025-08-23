@@ -4,6 +4,12 @@ import { educationalSessionService } from '@/lib/educational-session';
 import { initializeDatabase } from '@/lib/database';
 import { Message } from '@/types';
 
+/**
+ * @deprecated This API route uses the legacy educational session/chunk system.
+ * New implementations should use the lesson-based system with qaStartService.
+ * This route is maintained for backward compatibility only.
+ */
+
 // Initialize database on first API call
 let dbInitialized = false;
 
@@ -61,8 +67,11 @@ export async function POST(request: NextRequest) {
           // Get voice settings for consistent delivery
           const voiceSettings = await educationalSessionService.getVoiceSettings();
           
+          // Legacy chunk system fallback for missing question field
+          const chunkQuestion = currentChunk.question || "What are your thoughts on this topic?";
+          
           return NextResponse.json({
-            response: `${processedContent}\n\n${currentChunk.question}`,
+            response: `${processedContent}\n\n${chunkQuestion}`,
             currentChunk,
             voiceSettings,
             isChunkDelivery: true,
@@ -110,7 +119,9 @@ export async function POST(request: NextRequest) {
               nextChunk.content,
               session.personalizationEnabled
             );
-            aiResponse += `\n\n---\n\nNow, let's move on to our next topic:\n\n${nextContent}\n\n${nextChunk.question}`;
+            // Legacy chunk system fallback for missing question field
+            const nextChunkQuestion = nextChunk.question || "What are your thoughts on this topic?";
+            aiResponse += `\n\n---\n\nNow, let's move on to our next topic:\n\n${nextContent}\n\n${nextChunkQuestion}`;
           }
         } else {
           aiResponse += "\n\nCongratulations! You've completed the entire educational program. You should receive a comprehensive report shortly.";

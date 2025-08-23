@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         );
 
         // Get the lesson intro message
-        const introMessage = await sessionService.getLessonIntroMessage(lessonId);
+        const introMessage = await sessionService.getLessonIntroMessage(sessionId, lessonId);
 
         return NextResponse.json({ 
           success: true, 

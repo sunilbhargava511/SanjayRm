@@ -111,20 +111,96 @@ export class AdminService {
   async uploadKnowledgeBaseFile(
     file: File,
     indexedContent?: string
-  ): Promise<KnowledgeBaseFile> {
+  ): Promise<KnowledgeBaseFile | KnowledgeBaseFile[]> {
     const content = await file.text();
+    const fileType = file.type || 'text/plain';
+
+    // Handle JSON files with multiple entries
+    if (fileType === 'application/json') {
+      return await this.processJsonKnowledgeBase(file, content);
+    }
+
+    // Handle single file upload (existing behavior)
     const fileId = `kb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const newFile = await db.insert(schema.knowledgeBaseFiles).values({
       id: fileId,
       filename: file.name,
       content,
-      fileType: file.type || 'text/plain',
+      fileType,
       indexedContent: indexedContent || content, // Use provided indexed content or raw content
       uploadedAt: new Date().toISOString(),
     }).returning();
 
     return this.convertDatabaseKnowledgeFile(newFile[0]);
+  }
+
+  private async processJsonKnowledgeBase(
+    file: File,
+    content: string
+  ): Promise<KnowledgeBaseFile[]> {
+    let jsonData: any;
+    
+    try {
+      jsonData = JSON.parse(content);
+    } catch (error) {
+      throw new Error('Invalid JSON format');
+    }
+
+    // Validate JSON structure
+    if (!Array.isArray(jsonData)) {
+      throw new Error('JSON file must contain an array of knowledge base entries');
+    }
+
+    const results: KnowledgeBaseFile[] = [];
+    const timestamp = Date.now();
+
+    for (let i = 0; i < jsonData.length; i++) {
+      const entry = jsonData[i];
+      
+      // Validate required fields
+      if (!entry.title || !entry.content) {
+        throw new Error(`Entry ${i + 1} is missing required fields 'title' or 'content'`);
+      }
+
+      const fileId = `kb_${timestamp}_${i}_${Math.random().toString(36).substr(2, 9)}`;
+      const filename = `${entry.title.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-')}.json`;
+
+      // Prepare content with metadata
+      const entryContent = typeof entry.content === 'string' 
+        ? entry.content 
+        : JSON.stringify(entry.content, null, 2);
+
+      // Create structured metadata
+      const metadata = {
+        title: entry.title,
+        category: entry.category || 'general',
+        tags: entry.tags || [],
+        source: entry.source || file.name,
+        lastUpdated: entry.lastUpdated || new Date().toISOString()
+      };
+
+      // Combine content with metadata for indexing
+      const indexedContent = `Title: ${metadata.title}
+Category: ${metadata.category}
+Tags: ${metadata.tags.join(', ')}
+Source: ${metadata.source}
+
+${entryContent}`;
+
+      const newFile = await db.insert(schema.knowledgeBaseFiles).values({
+        id: fileId,
+        filename,
+        content: entryContent,
+        fileType: 'application/json',
+        indexedContent,
+        uploadedAt: new Date().toISOString(),
+      }).returning();
+
+      results.push(this.convertDatabaseKnowledgeFile(newFile[0]));
+    }
+
+    return results;
   }
 
   async getAllKnowledgeBaseFiles(): Promise<KnowledgeBaseFile[]> {

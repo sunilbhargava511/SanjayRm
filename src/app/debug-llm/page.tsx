@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Bug, Download, Trash2, RefreshCw, Play, Pause, Eye, Users, MessageSquare, Settings, FileText } from 'lucide-react';
+import { Bug, Download, Trash2, RefreshCw, Play, Pause, Eye, Users, MessageSquare, Settings, FileText, Clock } from 'lucide-react';
 import { DatabaseDebugEntry } from '@/lib/debug-database-service';
 import { PopupManager } from '@/components/debug/PopupManager';
 import { TranscriptPopup } from '@/components/debug/TranscriptPopup';
 import { KnowledgeBasePopup } from '@/components/debug/KnowledgeBasePopup';
 import { SystemPromptPopup } from '@/components/debug/SystemPromptPopup';
 import { ResponseDetailPopup } from '@/components/debug/ResponseDetailPopup';
+import SessionEventsPanel from '@/components/debug/SessionEventsPanel';
+import EventDetailsPopup from '@/components/debug/EventDetailsPopup';
+import AppHeader from '@/components/AppHeader';
+import { SessionEvent } from '@/types';
 
 interface DebugStats {
   isEnabled: boolean;
@@ -21,16 +25,38 @@ interface PopupState {
   knowledgeBase: boolean;
   systemPrompt: boolean;
   responseDetail: boolean;
+  eventDetails: boolean;
 }
+
+type TimeFilter = 'all' | '5m' | '10m' | '30m' | '1h' | '3h' | '24h';
+
+interface TimeFilterOption {
+  value: TimeFilter;
+  label: string;
+  minutes?: number;
+}
+
+const TIME_FILTER_OPTIONS: TimeFilterOption[] = [
+  { value: 'all', label: 'All entries' },
+  { value: '5m', label: 'Last 5 minutes', minutes: 5 },
+  { value: '10m', label: 'Last 10 minutes', minutes: 10 },
+  { value: '30m', label: 'Last 30 minutes', minutes: 30 },
+  { value: '1h', label: 'Last 1 hour', minutes: 60 },
+  { value: '3h', label: 'Last 3 hours', minutes: 180 },
+  { value: '24h', label: 'Last 24 hours', minutes: 1440 }
+];
 
 export default function DebugLLMPage() {
   const [entries, setEntries] = useState<DatabaseDebugEntry[]>([]);
+  const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<DatabaseDebugEntry | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<SessionEvent | null>(null);
   const [popupState, setPopupState] = useState<PopupState>({
     transcript: false,
     knowledgeBase: false,
     systemPrompt: false,
-    responseDetail: false
+    responseDetail: false,
+    eventDetails: false
   });
   const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
   const [isRealTime, setIsRealTime] = useState(false);
@@ -39,11 +65,12 @@ export default function DebugLLMPage() {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
 
-  // Load debug data on mount
+  // Load debug data on mount and when time filter changes
   useEffect(() => {
     loadDebugData();
-  }, [refreshKey]);
+  }, [refreshKey, timeFilter]);
 
   // Real-time updates
   useEffect(() => {
@@ -66,10 +93,21 @@ export default function DebugLLMPage() {
       }
       setError(null);
 
-      // Fetch debug stats and entries
-      const [statsResponse, entriesResponse] = await Promise.all([
+      // Calculate 'since' timestamp based on time filter
+      let sinceParam = '';
+      if (timeFilter !== 'all') {
+        const filterOption = TIME_FILTER_OPTIONS.find(opt => opt.value === timeFilter);
+        if (filterOption?.minutes) {
+          const since = new Date(Date.now() - filterOption.minutes * 60 * 1000).toISOString();
+          sinceParam = `&since=${encodeURIComponent(since)}`;
+        }
+      }
+
+      // Fetch debug stats, entries, and session events
+      const [statsResponse, entriesResponse, eventsResponse] = await Promise.all([
         fetch('/api/debug-llm?action=stats'),
-        fetch('/api/debug-llm?action=current-session')
+        fetch(`/api/debug-llm?action=current-session${sinceParam}`),
+        fetch(`/api/debug-llm?action=session-events${sinceParam}`)
       ]);
 
       if (!statsResponse.ok || !entriesResponse.ok) {
@@ -78,6 +116,12 @@ export default function DebugLLMPage() {
 
       const statsData = await statsResponse.json();
       const entriesData = await entriesResponse.json();
+      
+      // Session events is optional, don't fail if it's not available
+      let eventsData = { success: false, events: [] };
+      if (eventsResponse.ok) {
+        eventsData = await eventsResponse.json();
+      }
 
       if (statsData.success) {
         setDebugStats(statsData.stats);
@@ -85,6 +129,10 @@ export default function DebugLLMPage() {
 
       if (entriesData.success) {
         setEntries(entriesData.entries || []);
+      }
+
+      if (eventsData.success) {
+        setSessionEvents(eventsData.events || []);
       }
       
       setLastUpdated(new Date());
@@ -148,6 +196,11 @@ export default function DebugLLMPage() {
     setRefreshKey(prev => prev + 1);
   };
 
+  const handleViewEventDetails = (event: SessionEvent) => {
+    setSelectedEvent(event);
+    setPopupState(prev => ({ ...prev, eventDetails: true }));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -179,6 +232,11 @@ export default function DebugLLMPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      {/* App Header */}
+      <div className="mb-6">
+        <AppHeader />
+      </div>
+
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
         <div className="flex items-center justify-between">
@@ -201,6 +259,18 @@ export default function DebugLLMPage() {
 
           {/* Controls */}
           <div className="flex items-center gap-2">
+            {/* Time Filter Dropdown */}
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
+              className="flex items-center gap-1 px-3 py-1 rounded-md text-sm font-medium bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {TIME_FILTER_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             {/* Real-time toggle */}
             <button
               onClick={() => setIsRealTime(!isRealTime)}
@@ -265,16 +335,23 @@ export default function DebugLLMPage() {
         </div>
       </div>
 
-      {/* Debug Panel - Enhanced Two-Panel Layout */}
-      {entries.length > 0 ? (
+      {/* Debug Panel - Three-Column Layout */}
+      {(entries.length > 0 || sessionEvents.length > 0) ? (
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">LLM Debug Entries</h3>
-            <p className="text-sm text-gray-600 mt-1">Examine LLM inputs (left) and outputs (right) with detailed inspection</p>
+            <h3 className="text-lg font-medium text-gray-900">LLM Debug Interface</h3>
+            <p className="text-sm text-gray-600 mt-1">Session events (left), LLM inputs (center), and outputs (right) with detailed inspection</p>
           </div>
           
-          <div className="grid grid-cols-2 gap-0 min-h-[600px]">
-            {/* Left Panel - INPUT */}
+          <div className="grid grid-cols-3 gap-0 min-h-[600px]">
+            {/* Left Panel - Session Events */}
+            <div className="w-full">
+              <SessionEventsPanel
+                events={sessionEvents}
+                onViewEventDetails={handleViewEventDetails}
+              />
+            </div>
+            {/* Center Panel - INPUT */}
             <div className="border-r border-gray-200">
               <div className="p-4 border-b border-gray-200 bg-blue-50">
                 <h4 className="text-sm font-semibold text-blue-800 uppercase tracking-wide">INPUT</h4>
@@ -493,6 +570,13 @@ export default function DebugLLMPage() {
           <ResponseDetailPopup
             entry={selectedEntry}
             onClose={() => setPopupState(prev => ({ ...prev, responseDetail: false }))}
+          />
+        )}
+        
+        {selectedEvent && popupState.eventDetails && (
+          <EventDetailsPopup
+            event={selectedEvent}
+            onClose={() => setPopupState(prev => ({ ...prev, eventDetails: false }))}
           />
         )}
       </PopupManager>

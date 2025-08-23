@@ -52,11 +52,11 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'create': {
-        const { title, videoUrl, videoSummary, question, prerequisites, orderIndex } = data;
+        const { title, videoUrl, videoSummary, prerequisites, orderIndex } = data;
         
-        if (!title || !videoUrl || !videoSummary || !question) {
+        if (!title || !videoUrl || !videoSummary) {
           return NextResponse.json(
-            { success: false, error: 'Missing required fields: title, videoUrl, videoSummary, question' },
+            { success: false, error: 'Missing required fields: title, videoUrl, videoSummary' },
             { status: 400 }
           );
         }
@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
           title,
           videoUrl,
           videoSummary,
-          question,
           prerequisites: prerequisites || [],
           orderIndex
         });
@@ -103,7 +102,7 @@ export async function POST(request: NextRequest) {
           
           try {
             // Validate required fields
-            if (!lessonData.title || !lessonData.videoUrl || !lessonData.videoSummary || !lessonData.question) {
+            if (!lessonData.title || !lessonData.videoUrl || !lessonData.videoSummary) {
               errors.push(`Lesson ${i + 1}: Missing required fields`);
               continue;
             }
@@ -118,7 +117,6 @@ export async function POST(request: NextRequest) {
               title: lessonData.title,
               videoUrl: lessonData.videoUrl,
               videoSummary: lessonData.videoSummary,
-              question: lessonData.question,
               prerequisites: lessonData.prerequisites || [],
               orderIndex: lessonData.orderIndex || i
             });

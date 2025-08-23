@@ -16,7 +16,12 @@ import {
   Download,
   BarChart3,
   ArrowLeft,
-  MessageSquare
+  MessageSquare,
+  Volume2,
+  Play,
+  RefreshCw,
+  Headphones,
+  BarChart2
 } from 'lucide-react';
 import { 
   Lesson,
@@ -27,7 +32,7 @@ import {
 } from '@/types';
 import AppHeader from '@/components/AppHeader';
 
-type AdminTab = 'lessons' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages';
+type AdminTab = 'lessons' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages' | 'audio-management';
 type SettingsTab = 'general' | 'voice' | 'ui';
 
 
@@ -40,6 +45,8 @@ export default function AdminPanel() {
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBaseFile[]>([]);
   const [reports, setReports] = useState<SessionReport[]>([]);
   const [openingMessages, setOpeningMessages] = useState<any>({ general: null, lessonMessages: [], lessons: [] });
+  const [audioCache, setAudioCache] = useState<any[]>([]);
+  const [audioStats, setAudioStats] = useState<any>({ totalFiles: 0, totalSize: 0, cacheHitRate: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedLesson, setDraggedLesson] = useState<string | null>(null);
@@ -79,6 +86,13 @@ export default function AdminPanel() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Load audio data when the audio tab is selected
+  useEffect(() => {
+    if (currentTab === 'audio-management') {
+      loadAudioData();
+    }
+  }, [currentTab]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -141,6 +155,31 @@ export default function AdminPanel() {
 
 
 
+
+  // Audio Data Loading Function
+  const loadAudioData = async () => {
+    try {
+      // Get audio cache statistics
+      const statsResponse = await fetch('/api/admin/regenerate-audio');
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        if (statsData.success && statsData.statistics) {
+          setAudioStats(statsData.statistics);
+        }
+      }
+
+      // Get cached audio files (we'll need to create this API endpoint)
+      const cacheResponse = await fetch('/api/admin/audio-cache');
+      if (cacheResponse.ok) {
+        const cacheData = await cacheResponse.json();
+        if (cacheData.success) {
+          setAudioCache(cacheData.files || []);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load audio data:', err);
+    }
+  };
 
   // Store generated summaries to avoid re-generating
 
@@ -622,15 +661,24 @@ The lesson context will be automatically added to this prompt when used.`;
     const formData = new FormData(e.currentTarget);
     
     try {
+      setError(null);
       const response = await fetch('/api/admin/knowledge-base', {
         method: 'POST',
         body: formData,
       });
 
       if (response.ok) {
+        const result = await response.json();
         await loadData();
         setShowUploadKnowledgeForm(false);
         (e.target as HTMLFormElement).reset();
+        
+        // Show success message based on upload type
+        if (result.isBatch) {
+          setError(null); // Clear any previous errors
+          // You could add a success state here if you want to show positive feedback
+          console.log(result.message); // For now, just log the success message
+        }
       } else {
         const error = await response.json();
         setError(error.error || 'Failed to upload knowledge base file');
@@ -831,6 +879,7 @@ The lesson context will be automatically added to this prompt when used.`;
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
                 { id: 'opening-messages', label: 'Opening Messages', icon: MessageSquare },
+                { id: 'audio-management', label: 'Audio Management', icon: Volume2, count: audioCache.length },
                 { id: 'reports', label: 'Report Template', icon: BarChart3, count: hasBaseTemplate ? 1 : 0 },
                 { id: 'settings', label: 'Settings', icon: Settings },
               ].map(({ id, label, icon: Icon, count }) => (
@@ -927,22 +976,6 @@ The lesson context will be automatically added to this prompt when used.`;
                       />
                       <p className="mt-1 text-sm text-gray-500">
                         This summary helps the AI provide contextual responses during Q&A
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Q&A Opening Question
-                      </label>
-                      <textarea
-                        name="question"
-                        required
-                        rows={3}
-                        defaultValue={editingLesson?.question || ''}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="What questions or thoughts do you have about retirement planning after watching this lesson?"
-                      />
-                      <p className="mt-1 text-sm text-gray-500">
-                        This question starts the Q&A conversation after the video
                       </p>
                     </div>
                     <div>
@@ -1064,12 +1097,6 @@ The lesson context will be automatically added to this prompt when used.`;
                                   : lesson.videoSummary
                                 }
                               </p>
-                            </div>
-                            
-                            {/* Q&A Question */}
-                            <div className="bg-gray-50 rounded-md p-3 mb-3">
-                              <p className="text-sm font-medium text-gray-700 mb-1">Q&A Opening Question:</p>
-                              <p className="text-gray-800">{lesson.question}</p>
                             </div>
 
                             {/* Start Message */}
@@ -1954,13 +1981,28 @@ The lesson context will be automatically added to this prompt when used.`;
                         ref={knowledgeFileInputRef}
                         type="file"
                         name="file"
-                        accept=".txt,.md,.pdf,.csv"
+                        accept=".txt,.md,.pdf,.csv,.json"
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       />
                       <p className="mt-1 text-sm text-gray-500">
-                        Supported formats: TXT, PDF, CSV, Markdown
+                        Supported formats: TXT, PDF, CSV, Markdown, JSON
                       </p>
+                      <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                        <p className="text-xs font-medium text-gray-700 mb-1">JSON Format Example:</p>
+                        <pre className="text-xs text-gray-600 whitespace-pre-wrap">{`[
+  {
+    "title": "Emergency Fund Basics",
+    "content": "An emergency fund is...",
+    "category": "financial-planning",
+    "tags": ["emergency", "savings"],
+    "source": "Financial Planning Guide"
+  }
+]`}</pre>
+                        <p className="text-xs text-gray-500 mt-1">
+                          JSON files can contain multiple entries. Required fields: title, content
+                        </p>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2569,6 +2611,217 @@ The lesson context will be automatically added to this prompt when used.`;
                       </div>
                     </div>
                   </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Audio Management Tab */}
+          {currentTab === 'audio-management' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Audio Management</h2>
+                  <p className="text-gray-600">Manage TTS audio cache and generation</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    {audioCache.length} cached files
+                  </span>
+                </div>
+              </div>
+
+              {/* Audio Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart2 className="w-5 h-5 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">Total Files</span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-900">{audioStats.totalFiles}</p>
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Volume2 className="w-5 h-5 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">Cache Size</span>
+                  </div>
+                  <p className="text-2xl font-bold text-green-900">
+                    {audioStats.totalSize ? (audioStats.totalSize / 1024 / 1024).toFixed(1) : '0.0'}MB
+                  </p>
+                </div>
+
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Headphones className="w-5 h-5 text-purple-600" />
+                    <span className="text-sm font-medium text-purple-800">Hit Rate</span>
+                  </div>
+                  <p className="text-2xl font-bold text-purple-900">{audioStats.cacheHitRate}%</p>
+                </div>
+
+                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <RefreshCw className="w-5 h-5 text-orange-600" />
+                    <span className="text-sm font-medium text-orange-800">Last Updated</span>
+                  </div>
+                  <p className="text-sm font-bold text-orange-900">Just now</p>
+                </div>
+              </div>
+
+              {/* Bulk Audio Controls */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Bulk Operations</h3>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/admin/regenerate-audio', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ all: true })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                          setError(null);
+                          // Refresh audio cache data
+                          await loadAudioData();
+                        } else {
+                          setError(result.error);
+                        }
+                      } catch (err) {
+                        setError('Failed to regenerate all audio');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Regenerate All Audio
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      const daysOld = prompt('Clear cache older than how many days?', '30');
+                      if (daysOld && !isNaN(Number(daysOld))) {
+                        try {
+                          const response = await fetch(`/api/admin/regenerate-audio?daysOld=${daysOld}`, {
+                            method: 'DELETE'
+                          });
+                          const result = await response.json();
+                          if (result.success) {
+                            setError(null);
+                            await loadAudioData();
+                          } else {
+                            setError(result.error);
+                          }
+                        } catch (err) {
+                          setError('Failed to clear old cache');
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Clear Old Cache
+                  </button>
+
+                  <button
+                    onClick={loadAudioData}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh Data
+                  </button>
+                </div>
+              </div>
+
+              {/* Audio Cache List */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Cached Audio Files</h3>
+                
+                {audioCache.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Volume2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg">No cached audio files found</p>
+                    <p className="text-sm">Audio will be cached as TTS messages are generated</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {audioCache.map((audio) => (
+                      <div key={audio.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <Volume2 className="w-5 h-5 text-gray-400" />
+                              <span className="font-medium text-gray-900">
+                                {audio.content ? audio.content.substring(0, 60) + (audio.content.length > 60 ? '...' : '') : 'Audio Message'}
+                              </span>
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                {audio.voice_id || 'Default Voice'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <span>Size: {(audio.file_size / 1024).toFixed(1)}KB</span>
+                              <span>Created: {new Date(audio.created_at).toLocaleDateString()}</span>
+                              <span>Format: {audio.audio_format || 'MP3'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                // Play audio functionality will be added
+                                console.log('Play audio:', audio.id);
+                              }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Play Audio"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch('/api/admin/regenerate-audio', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ messageId: audio.id })
+                                  });
+                                  const result = await response.json();
+                                  if (result.success) {
+                                    setError(null);
+                                    await loadAudioData();
+                                  } else {
+                                    setError(result.error);
+                                  }
+                                } catch (err) {
+                                  setError('Failed to regenerate audio');
+                                }
+                              }}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                              title="Regenerate Audio"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (confirm('Delete this cached audio file?')) {
+                                  try {
+                                    // Delete functionality will be added to API
+                                    console.log('Delete audio:', audio.id);
+                                    await loadAudioData();
+                                  } catch (err) {
+                                    setError('Failed to delete audio');
+                                  }
+                                }
+                              }}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Delete Audio"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

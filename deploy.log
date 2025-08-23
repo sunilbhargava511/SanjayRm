@@ -1,0 +1,337 @@
+==> Verifying app config
+Validating /Users/sunilbhargava/SanjayRM/financial-advisor/fly.toml
+[32m✓[0m Configuration is valid
+--> Verified app config
+==> Building image
+Waiting for depot builder...
+
+==> Building image with Depot
+--> build:  (​)
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile:
+#1 transferring dockerfile: 2.44kB 1.2s done
+#1 DONE 1.2s
+
+#2 [internal] load metadata for docker.io/library/node:18-alpine
+#2 DONE 0.9s
+
+#3 [internal] load .dockerignore
+#3 transferring context:
+#3 transferring context: 1.06kB 1.2s done
+#3 DONE 1.2s
+
+#4 [internal] load build context
+#4 ...
+
+#5 [runner  1/10] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+#5 resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e done
+#5 CACHED
+
+#6 [runner  2/10] WORKDIR /app
+#6 CACHED
+
+#4 [internal] load build context
+#4 transferring context: 12.82kB 1.0s done
+#4 DONE 1.0s
+
+#7 [deps 2/5] RUN apk add --no-cache libc6-compat
+#7 0.132 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/APKINDEX.tar.gz
+#7 0.421 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/x86_64/APKINDEX.tar.gz
+#7 0.975 (1/3) Installing musl-obstack (1.2.3-r2)
+#7 0.979 (2/3) Installing libucontext (1.3.2-r0)
+#7 0.981 (3/3) Installing gcompat (1.1.0-r4)
+#7 0.987 OK: 10 MiB in 20 packages
+#7 DONE 1.1s
+
+#8 [deps 3/5] WORKDIR /app
+#8 DONE 0.0s
+
+#9 [runner  3/10] RUN apk add --no-cache sqlite
+#9 0.135 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/APKINDEX.tar.gz
+#9 0.434 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/x86_64/APKINDEX.tar.gz
+#9 0.970 (1/4) Installing ncurses-terminfo-base (6.5_p20241006-r3)
+#9 0.979 (2/4) Installing libncursesw (6.5_p20241006-r3)
+#9 0.987 (3/4) Installing readline (8.2.13-r0)
+#9 0.992 (4/4) Installing sqlite (3.48.0-r3)
+#9 1.011 Executing busybox-1.37.0-r12.trigger
+#9 1.021 OK: 12 MiB in 21 packages
+#9 DONE 1.2s
+
+#10 [deps 4/5] COPY package.json package-lock.json ./
+#10 DONE 0.0s
+
+#11 [runner  4/10] RUN addgroup --system --gid 1001 nodejs
+#11 DONE 0.1s
+
+#12 [deps 5/5] RUN npm ci
+#12 ...
+
+#13 [runner  5/10] RUN adduser --system --uid 1001 nextjs
+#13 DONE 0.1s
+
+#12 [deps 5/5] RUN npm ci
+#12 3.340 npm warn deprecated multer@1.4.5-lts.2: Multer 1.x is impacted by a number of vulnerabilities, which have been patched in 2.x. You should upgrade to the latest 2.x version.
+#12 4.995 npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+#12 5.075 npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+#12 16.92 
+#12 16.92 added 472 packages, and audited 473 packages in 17s
+#12 16.92 
+#12 16.92 151 packages are looking for funding
+#12 16.92   run `npm fund` for details
+#12 16.95 
+#12 16.95 6 vulnerabilities (5 moderate, 1 high)
+#12 16.95 
+#12 16.95 To address all issues (including breaking changes), run:
+#12 16.95   npm audit fix --force
+#12 16.95 
+#12 16.95 Run `npm audit` for details.
+#12 16.96 npm notice
+#12 16.96 npm notice New major version of npm available! 10.8.2 -> 11.5.2
+#12 16.96 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.5.2
+#12 16.96 npm notice To update run: npm install -g npm@11.5.2
+#12 16.96 npm notice
+#12 DONE 26.5s
+
+#14 [builder 4/6] COPY --from=deps /app/node_modules ./node_modules
+#14 DONE 17.5s
+
+#15 [builder 5/6] COPY . .
+#15 DONE 0.4s
+
+#16 [builder 6/6] RUN npm run build
+#16 0.645 
+#16 0.645 > financial-advisor@0.1.0 build
+#16 0.645 > next build
+#16 0.645 
+#16 2.180    ▲ Next.js 15.4.5
+#16 2.181 
+#16 2.211    Creating an optimized production build ...
+#16 29.29  ✓ Compiled successfully in 21.0s
+#16 29.30    Skipping linting
+#16 29.30    Checking validity of types ...
+#16 39.53    Collecting page data ...
+#16 40.25 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 40.25     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 40.25     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 40.25     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 40.25     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 40.25     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 40.25     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 40.25   code: 'SQLITE_ERROR'
+#16 40.25 }
+#16 40.28 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 40.28     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 40.28     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 40.28     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 40.28     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 40.28     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 40.28     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 40.28   code: 'SQLITE_ERROR'
+#16 40.28 }
+#16 40.33 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 40.33     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 40.33     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 40.33     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 40.33     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 40.33     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 40.33     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 40.33   code: 'SQLITE_ERROR'
+#16 40.33 }
+#16 40.36 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 40.36     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 40.36     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 40.36     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 40.36     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 40.36     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 40.36     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 40.36   code: 'SQLITE_ERROR'
+#16 40.36 }
+#16 40.38 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 40.38     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 40.38     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 40.38     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 40.38     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 40.38     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 40.38     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 40.38   code: 'SQLITE_ERROR'
+#16 40.38 }
+#16 43.60    Generating static pages (0/52) ...
+#16 44.30    Generating static pages (13/52) 
+#16 44.31 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 44.31     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 44.31     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 44.31     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 44.31     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 44.31     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 44.31     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 44.31   code: 'SQLITE_ERROR'
+#16 44.31 }
+#16 44.33 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 44.33     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 44.33     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 44.33     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 44.33     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 44.33     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 44.33     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 44.33   code: 'SQLITE_ERROR'
+#16 44.33 }
+#16 44.35    Generating static pages (26/52) 
+#16 44.40 [Debug DB] Failed to load settings from database: SqliteError: no such table: admin_settings
+#16 44.40     at at.prepareQuery (.next/server/chunks/5597.js:13:20872)
+#16 44.40     at at.prepareOneTimeQuery (.next/server/chunks/5597.js:13:19743)
+#16 44.40     at Y._prepare (.next/server/chunks/5597.js:13:5427)
+#16 44.40     at Y.all (.next/server/chunks/5597.js:13:5612)
+#16 44.40     at Y.execute (.next/server/chunks/5597.js:13:5724)
+#16 44.40     at Y.then (.next/server/chunks/5597.js:13:668) {
+#16 44.40   code: 'SQLITE_ERROR'
+#16 44.40 }
+#16 44.51    Generating static pages (39/52) 
+#16 44.81  ✓ Generating static pages (52/52)
+#16 45.57    Finalizing page optimization ...
+#16 45.57    Collecting build traces ...
+#16 63.29 
+#16 63.30 Route (app)                                 Size  First Load JS
+#16 63.30 ┌ ○ /                                    7.13 kB         223 kB
+#16 63.30 ├ ○ /_not-found                            996 B         101 kB
+#16 63.30 ├ ○ /admin                               15.8 kB         115 kB
+#16 63.30 ├ ƒ /api/admin/audio-cache                 241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/base-template               241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/knowledge-base              241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/opening-messages            241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/prompts                     241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/regenerate-audio            241 B        99.8 kB
+#16 63.30 ├ ƒ /api/admin/settings                    241 B        99.8 kB
+#16 63.30 ├ ƒ /api/cached-audio/[messageId]          241 B        99.8 kB
+#16 63.30 ├ ƒ /api/chat                              241 B        99.8 kB
+#16 63.30 ├ ƒ /api/chat/completions                  241 B        99.8 kB
+#16 63.30 ├ ƒ /api/config                            241 B        99.8 kB
+#16 63.30 ├ ƒ /api/debug-env                         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/debug-llm                         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/educational-session               241 B        99.8 kB
+#16 63.30 ├ ƒ /api/elevenlabs-conversation           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/elevenlabs-signed-url             241 B        99.8 kB
+#16 63.30 ├ ƒ /api/elevenlabs-tts                    241 B        99.8 kB
+#16 63.30 ├ ƒ /api/elevenlabs-webhook                241 B        99.8 kB
+#16 63.30 ├ ƒ /api/elevenlabs-webhook-enhanced       241 B        99.8 kB
+#16 63.30 ├ ƒ /api/health                            241 B        99.8 kB
+#16 63.30 ├ ƒ /api/init-database                     241 B        99.8 kB
+#16 63.30 ├ ƒ /api/lessons                           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/migrate                           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/opening-messages/lesson/[id]      241 B        99.8 kB
+#16 63.30 ├ ƒ /api/recover                           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/register-session                  241 B        99.8 kB
+#16 63.30 ├ ƒ /api/reports                           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/seed                              241 B        99.8 kB
+#16 63.30 ├ ƒ /api/session                           241 B        99.8 kB
+#16 63.30 ├ ƒ /api/session-transcript                241 B        99.8 kB
+#16 63.30 ├ ƒ /api/sessions                          241 B        99.8 kB
+#16 63.30 ├ ƒ /api/start-general-conversation        241 B        99.8 kB
+#16 63.30 ├ ƒ /api/start-lesson                      241 B        99.8 kB
+#16 63.30 ├ ƒ /api/start-lesson-conversation         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/summarize                         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/test-lesson-conversation          241 B        99.8 kB
+#16 63.30 ├ ƒ /api/test-session-events               241 B        99.8 kB
+#16 63.30 ├ ƒ /api/test-system-prompt                241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/financial-planning       241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/knowledge-search         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/market-insights          241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/portfolio-review         241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/post-call                241 B        99.8 kB
+#16 63.30 ├ ƒ /api/webhooks/stock-analysis           241 B        99.8 kB
+#16 63.30 ├ ○ /debug-llm                           15.7 kB         115 kB
+#16 63.30 ├ ○ /test-lesson                         6.36 kB         109 kB
+#16 63.30 ├ ○ /test-session-events                 1.14 kB         101 kB
+#16 63.30 └ ○ /test-unified-session                5.07 kB         221 kB
+#16 63.30 + First Load JS shared by all            99.6 kB
+#16 63.30   ├ chunks/4bd1b696-602635ee57868870.js  54.1 kB
+#16 63.30   ├ chunks/5964-65b29b990a9f3302.js      43.5 kB
+#16 63.30   └ other shared chunks (total)           1.9 kB
+#16 63.30 
+#16 63.30 
+#16 63.30 ○  (Static)   prerendered as static content
+#16 63.30 ƒ  (Dynamic)  server-rendered on demand
+#16 63.30 
+#16 63.37 npm notice
+#16 63.37 npm notice New major version of npm available! 10.8.2 -> 11.5.2
+#16 63.37 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.5.2
+#16 63.37 npm notice To update run: npm install -g npm@11.5.2
+#16 63.37 npm notice
+#16 DONE 64.2s
+
+#17 [runner  6/10] COPY --from=builder /app/public ./public
+#17 DONE 0.0s
+
+#18 [runner  7/10] COPY --from=builder /app/.next/standalone ./
+#18 DONE 0.8s
+
+#19 [runner  8/10] COPY --from=builder /app/.next/static ./.next/static
+#19 DONE 0.1s
+
+#20 [runner  9/10] RUN mkdir -p /data && chown -R nextjs:nodejs /data
+#20 DONE 0.1s
+
+#21 [runner 10/10] RUN echo '#!/bin/sh\nif [ ! -f /data/database.sqlite ]; then\n  echo "Creating database on first run..."\nfi\nexec "$@"' > /app/init-db.sh && chmod +x /app/init-db.sh
+#21 DONE 0.1s
+
+#22 exporting to image
+#22 exporting layers
+#22 exporting layers 0.5s done
+#22 exporting manifest sha256:47b608fdb0816546136226f53526d540798601f345330df8a0f0749f1c8715b1 done
+#22 exporting config sha256:3cc6f3c1ddb61ff903f2c70231411d48bed5f06931fdd44435945e5d43318355 done
+#22 pushing layers for registry.fly.io/thegoldenpath:deployment-01K34K95QEYF690GVZG5N7VRM6@sha256:47b608fdb0816546136226f53526d540798601f345330df8a0f0749f1c8715b1
+#22 pushing layer sha256:729c7ee6d41a71a8fe592f5eba1ac8056bf6b01f35e2986924db4fcde245a303
+#22 pushing layer sha256:396a653bc5bb8ef386778e8b03e05119353d85becf76f0c7e25850890680662c
+#22 pushing layer sha256:14d656107009f3c4dfbcbeddee4d1b545e013e3d4356507b87637b612227d42f
+#22 pushing layer sha256:deade19ccfd3dc9521aed33e2d9d8c641caf5ba203320ffd20e04c038f73127d
+#22 pushing layer sha256:062cd9b29b5f472099c3f4bc2dc6817e8a54fa191330548a53fa1eb1abf9faf3
+#22 pushing layer sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+#22 pushing layer sha256:3cc6f3c1ddb61ff903f2c70231411d48bed5f06931fdd44435945e5d43318355
+#22 pushing layer sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+#22 pushing layer sha256:b296cc3770c8fc12d197008c06cc96d0e8993583a82eda7baedd2a39cfda473c
+#22 pushing layer sha256:8dbcf0a80965ae4f0a582b32954538551b53d850d5b6b2198bb5a136b690603f
+#22 pushing layer sha256:6c0ef1561ce6033322fc30fe05883f2583ec81311710d09dae630638418e3c99
+#22 pushing layer sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+#22 pushing layer sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+#22 pushing layer sha256:314b0c1cbd323fba0e204556083a16aeb10101d424811041de2f984b78087e46
+#22 pushing layer sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e 1.4s done
+#22 pushing layer sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870 1.8s done
+#22 pushing layer sha256:314b0c1cbd323fba0e204556083a16aeb10101d424811041de2f984b78087e46 2.8s done
+#22 pushing layer sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3 4.4s done
+#22 pushing layer sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549 5.1s done
+#22 pushing layer sha256:3cc6f3c1ddb61ff903f2c70231411d48bed5f06931fdd44435945e5d43318355 7.8s done
+#22 pushing layer sha256:729c7ee6d41a71a8fe592f5eba1ac8056bf6b01f35e2986924db4fcde245a303 8.2s done
+#22 pushing layer sha256:062cd9b29b5f472099c3f4bc2dc6817e8a54fa191330548a53fa1eb1abf9faf3 8.4s done
+#22 pushing layer sha256:6c0ef1561ce6033322fc30fe05883f2583ec81311710d09dae630638418e3c99 8.6s done
+#22 pushing layer sha256:396a653bc5bb8ef386778e8b03e05119353d85becf76f0c7e25850890680662c 8.6s done
+#22 pushing layer sha256:8dbcf0a80965ae4f0a582b32954538551b53d850d5b6b2198bb5a136b690603f 8.7s done
+#22 pushing layer sha256:14d656107009f3c4dfbcbeddee4d1b545e013e3d4356507b87637b612227d42f 8.9s done
+#22 pushing layer sha256:deade19ccfd3dc9521aed33e2d9d8c641caf5ba203320ffd20e04c038f73127d 9.0s done
+#22 pushing layers for registry.fly.io/thegoldenpath:deployment-01K34K95QEYF690GVZG5N7VRM6@sha256:47b608fdb0816546136226f53526d540798601f345330df8a0f0749f1c8715b1 11.6s done
+#22 pushing layer sha256:b296cc3770c8fc12d197008c06cc96d0e8993583a82eda7baedd2a39cfda473c 11.6s done
+#22 pushing manifest for registry.fly.io/thegoldenpath:deployment-01K34K95QEYF690GVZG5N7VRM6@sha256:47b608fdb0816546136226f53526d540798601f345330df8a0f0749f1c8715b1
+#22 pushing manifest for registry.fly.io/thegoldenpath:deployment-01K34K95QEYF690GVZG5N7VRM6@sha256:47b608fdb0816546136226f53526d540798601f345330df8a0f0749f1c8715b1 1.5s done
+#22 DONE 13.6s
+--> Build Summary:  (​)
+[38;5;252m--> Building image done[0m
+image: registry.fly.io/thegoldenpath:deployment-01K34K95QEYF690GVZG5N7VRM6
+image size: 73 MB
+
+Watch your deployment at https://fly.io/apps/thegoldenpath/monitoring
+
+Updating existing machines in 'thegoldenpath' with rolling strategy
+> Acquiring lease for 3d8d1616f235d8
+> Acquired lease for 3d8d1616f235d8
+> Updating machine config for 3d8d1616f235d8
+> Updating 3d8d1616f235d8 [app]
+> Updated machine config for 3d8d1616f235d8
+> Waiting for machine 3d8d1616f235d8 to reach a good state
+> Machine 3d8d1616f235d8 reached started state
+> Running smoke checks on machine 3d8d1616f235d8
+> Running machine checks on machine 3d8d1616f235d8
+> Checking health of machine 3d8d1616f235d8
+✔ Machine 3d8d1616f235d8 is now in a good state
+> Clearing lease for 3d8d1616f235d8
+✔ Cleared lease for 3d8d1616f235d8
+Checking DNS configuration for thegoldenpath.fly.dev
+
+Visit your newly deployed app at https://thegoldenpath.fly.dev/

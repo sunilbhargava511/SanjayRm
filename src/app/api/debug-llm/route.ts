@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'stats':
+        // Refresh debug settings from database before getting stats
+        await debugDatabaseService.isDebugEnabled();
         const stats = await debugDatabaseService.getDebugStats();
         return NextResponse.json({
           success: true,
@@ -29,14 +31,16 @@ export async function GET(request: NextRequest) {
 
       case 'entries':
         const limit = parseInt(searchParams.get('limit') || '20');
-        const entries = await debugDatabaseService.getRecentEntries(limit);
+        const since = searchParams.get('since') || undefined;
+        const entries = await debugDatabaseService.getRecentEntries(limit, since);
         return NextResponse.json({
           success: true,
           entries
         });
 
       case 'current-session':
-        const currentEntries = await debugDatabaseService.getCurrentSessionEntries();
+        const sinceCurrent = searchParams.get('since') || undefined;
+        const currentEntries = await debugDatabaseService.getCurrentSessionEntries(sinceCurrent);
         return NextResponse.json({
           success: true,
           entries: currentEntries
@@ -47,6 +51,23 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           success: true,
           sessions
+        });
+
+      case 'session-events':
+        const sinceEvents = searchParams.get('since') || undefined;
+        const events = await debugDatabaseService.getSessionEvents(sinceEvents);
+        return NextResponse.json({
+          success: true,
+          events
+        });
+
+      case 'all-events':
+        const limitEvents = parseInt(searchParams.get('limit') || '50');
+        const sinceAllEvents = searchParams.get('since') || undefined;
+        const allEvents = await debugDatabaseService.getAllSessionEvents(limitEvents, sinceAllEvents);
+        return NextResponse.json({
+          success: true,
+          events: allEvents
         });
 
       default:

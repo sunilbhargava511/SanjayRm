@@ -19,7 +19,7 @@ export interface CachedAudio {
 }
 
 export class AudioCacheService {
-  private readonly ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+  private readonly ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
   private readonly DEFAULT_VOICE_ID = 'MXGyTMlsvQgQ4BL0emIa';
   
   /**

@@ -8,7 +8,6 @@ export const lessons = sqliteTable('lessons', {
   videoUrl: text('video_url').notNull(), // YouTube URL
   videoSummary: text('video_summary').notNull(), // Context for LLM during Q&A
   startMessage: text('start_message'), // TTS message played before video
-  question: text('question').notNull(), // FirstMessage for Q&A conversation
   orderIndex: integer('order_index').notNull(),
   prerequisites: text('prerequisites'), // JSON array of lesson IDs
   active: integer('active', { mode: 'boolean' }).default(true),
@@ -149,6 +148,27 @@ export const debugEntries = sqliteTable('debug_entries', {
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
 
+// Session Events Table for Debug Panel
+export const sessionEvents = sqliteTable('session_events', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  debugSessionId: text('debug_session_id').notNull(), // Links to debugSessions
+  eventType: text('event_type').notNull(), // 'session_started' | 'elevenlabs_conversation_started' | 'lesson_started' | 'lesson_qa_started' | 'open_conversation_started'
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  firstMessage: text('first_message'),
+  status: text('status').notNull().default('active'), // 'active' | 'completed' | 'interrupted'
+  icon: text('icon'),
+  
+  // Event metadata (stored as JSON)
+  metadata: text('metadata').notNull(), // JSON object with event-specific data
+  
+  // Timestamps
+  timestamp: text('timestamp').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // Unified conversation sessions (new session system)
 export const conversationSessions = sqliteTable('conversation_sessions', {
   id: text('id').primaryKey(),
@@ -258,3 +278,6 @@ export type NewOpeningMessage = typeof openingMessages.$inferInsert;
 
 export type AudioCache = typeof audioCache.$inferSelect;
 export type NewAudioCache = typeof audioCache.$inferInsert;
+
+export type SessionEvent = typeof sessionEvents.$inferSelect;
+export type NewSessionEvent = typeof sessionEvents.$inferInsert;

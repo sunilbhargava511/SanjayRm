@@ -78,8 +78,7 @@ export async function POST(request: NextRequest) {
       lessonConversation: lessonConversation,
       lesson: {
         id: lesson.id,
-        title: lesson.title,
-        question: lesson.question
+        title: lesson.title
       },
       // Include the full conversation data for debugging
       conversationDetails: conversationData.conversation

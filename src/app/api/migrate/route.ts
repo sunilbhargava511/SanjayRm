@@ -198,6 +198,36 @@ export async function POST(request: NextRequest) {
       console.log('✅ debug_entries table already exists');
     }
     
+    // Check if session_events table exists
+    const sessionEventsExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='session_events'
+    `).all();
+    
+    if (sessionEventsExists.length === 0) {
+      console.log('Creating session_events table...');
+      sqlite.exec(`
+        CREATE TABLE session_events (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          debug_session_id TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          first_message TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          icon TEXT,
+          metadata TEXT NOT NULL,
+          timestamp TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+          updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+        );
+      `);
+      console.log('✅ Created session_events table');
+    } else {
+      console.log('✅ session_events table already exists');
+    }
+
     // Check if debugLlmEnabled column exists in admin_settings
     const adminTableInfo = sqlite.prepare(`PRAGMA table_info(admin_settings)`).all();
     const hasDebugLlmColumn = adminTableInfo.some((col: any) => col.name === 'debug_llm_enabled');

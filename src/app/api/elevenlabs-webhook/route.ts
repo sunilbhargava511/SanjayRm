@@ -123,7 +123,6 @@ LESSON DETAILS:
 - Lesson Title: ${lesson.title}
 - Video Summary: ${lesson.videoSummary}
 - Current Phase: conversation
-- Initial Question: ${lesson.question}
 
 When responding, prioritize lesson-specific guidance while maintaining your general advisory capabilities. Reference the video content when appropriate and help the user understand and apply the concepts discussed in this lesson.`;
       } else {
@@ -134,7 +133,6 @@ CURRENT LESSON CONTEXT:
 You are currently discussing "${lesson.title}" with the user. 
 
 Video Summary: ${lesson.videoSummary}
-Initial Question: ${lesson.question}
 Current Phase: conversation
 
 Use this context to provide relevant, lesson-focused responses while maintaining your general financial advisory capabilities.`;

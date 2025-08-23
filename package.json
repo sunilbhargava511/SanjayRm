@@ -25,7 +25,10 @@
     "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-markdown": "^10.1.0",
     "react-sortablejs": "^6.1.4",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "sortablejs": "^1.15.3"
   },
   "devDependencies": {

@@ -1,8 +1,8 @@
 import { db } from './database';
 import * as schema from './database/schema';
-import { eq, desc, and, asc } from 'drizzle-orm';
+import { eq, desc, and, asc, gt, sql } from 'drizzle-orm';
 import { adminService } from './admin-service';
-import { Message, Article } from '@/types';
+import { Message, Article, SessionEvent } from '@/types';
 
 interface LLMRequestData {
   systemPrompt: string;
@@ -228,24 +228,31 @@ export class DebugDatabaseService {
     }
   }
 
-  // Get recent debug entries
-  async getRecentEntries(limit: number = 20): Promise<DatabaseDebugEntry[]> {
+  // Get recent debug entries with optional time filter
+  async getRecentEntries(limit: number = 20, since?: string): Promise<DatabaseDebugEntry[]> {
     try {
-      const entries = await db
+      const baseQuery = db
         .select()
-        .from(schema.debugEntries)
+        .from(schema.debugEntries);
+      
+      // Apply time filter if provided
+      const query = since 
+        ? baseQuery.where(gt(schema.debugEntries.timestamp, since))
+        : baseQuery;
+      
+      const entries = await query
         .orderBy(desc(schema.debugEntries.timestamp))
         .limit(limit);
 
-      return entries.map(this.convertDatabaseEntry);
+      return entries.map((entry) => this.convertDatabaseEntry(entry));
     } catch (error) {
       console.error('[Debug DB] Failed to get recent entries:', error);
       return [];
     }
   }
 
-  // Get entries for current session
-  async getCurrentSessionEntries(): Promise<DatabaseDebugEntry[]> {
+  // Get entries for current session with optional time filter
+  async getCurrentSessionEntries(since?: string): Promise<DatabaseDebugEntry[]> {
     if (!this.currentSessionId) {
       await this.getCurrentSession();
     }
@@ -253,13 +260,23 @@ export class DebugDatabaseService {
     if (!this.currentSessionId) return [];
 
     try {
+      const sessionCondition = eq(schema.debugEntries.sessionId, this.currentSessionId);
+      
+      // Build conditions based on whether time filter is provided
+      const conditions = since 
+        ? and(
+            sessionCondition,
+            gt(schema.debugEntries.timestamp, since)
+          )
+        : sessionCondition;
+      
       const entries = await db
         .select()
         .from(schema.debugEntries)
-        .where(eq(schema.debugEntries.sessionId, this.currentSessionId))
+        .where(conditions)
         .orderBy(desc(schema.debugEntries.timestamp));
 
-      return entries.map(this.convertDatabaseEntry);
+      return entries.map((entry) => this.convertDatabaseEntry(entry));
     } catch (error) {
       console.error('[Debug DB] Failed to get current session entries:', error);
       return [];
@@ -439,6 +456,120 @@ export class DebugDatabaseService {
     });
   }
 
+  // Session Event Management
+  async addSessionEvent(event: SessionEvent): Promise<void> {
+    if (!this.isDebugEnabledSync()) return;
+
+    try {
+      const debugSessionId = await this.getCurrentSession();
+      
+      await db.insert(schema.sessionEvents).values({
+        id: event.id,
+        sessionId: event.metadata.sessionId,
+        debugSessionId,
+        eventType: event.type,
+        title: event.title,
+        summary: event.summary,
+        firstMessage: event.firstMessage,
+        status: event.status,
+        icon: event.icon,
+        metadata: JSON.stringify(event.metadata),
+        timestamp: event.timestamp.toISOString()
+      });
+      
+      console.log(`[Debug DB] Added session event: ${event.type} (${event.id})`);
+    } catch (error) {
+      console.error('[Debug DB] Failed to add session event:', error);
+    }
+  }
+
+  // Get session events for current debug session
+  async getSessionEvents(since?: string): Promise<SessionEvent[]> {
+    try {
+      const debugSessionId = this.currentSessionId;
+      if (!debugSessionId) return [];
+
+      let conditions = eq(schema.sessionEvents.debugSessionId, debugSessionId);
+      
+      // Apply time filter if provided
+      if (since) {
+        conditions = and(
+          eq(schema.sessionEvents.debugSessionId, debugSessionId),
+          gt(schema.sessionEvents.timestamp, since)
+        ) as any;
+      }
+
+      const query = db
+        .select()
+        .from(schema.sessionEvents)
+        .where(conditions);
+
+      const events = await query.orderBy(desc(schema.sessionEvents.timestamp));
+
+      return events.map((event) => this.convertDatabaseSessionEvent(event));
+    } catch (error) {
+      console.error('[Debug DB] Failed to get session events:', error);
+      return [];
+    }
+  }
+
+  // Get all session events
+  async getAllSessionEvents(limit: number = 50, since?: string): Promise<SessionEvent[]> {
+    try {
+      const baseQuery = db
+        .select()
+        .from(schema.sessionEvents);
+
+      // Apply time filter if provided
+      const query = since 
+        ? baseQuery.where(gt(schema.sessionEvents.timestamp, since))
+        : baseQuery;
+
+      const events = await query
+        .orderBy(desc(schema.sessionEvents.timestamp))
+        .limit(limit);
+
+      return events.map((event) => this.convertDatabaseSessionEvent(event));
+    } catch (error) {
+      console.error('[Debug DB] Failed to get all session events:', error);
+      return [];
+    }
+  }
+
+  // Update session event status
+  async updateSessionEventStatus(eventId: string, status: 'active' | 'completed' | 'interrupted'): Promise<void> {
+    if (!this.isDebugEnabledSync()) return;
+
+    try {
+      await db
+        .update(schema.sessionEvents)
+        .set({ 
+          status,
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(schema.sessionEvents.id, eventId));
+      
+      console.log(`[Debug DB] Updated session event ${eventId} status to ${status}`);
+    } catch (error) {
+      console.error('[Debug DB] Failed to update session event status:', error);
+    }
+  }
+
+  // Convert database session event to our format
+  private convertDatabaseSessionEvent(dbEvent: any): SessionEvent {
+    return {
+      id: dbEvent.id,
+      type: dbEvent.eventType,
+      title: dbEvent.title,
+      summary: dbEvent.summary,
+      timestamp: new Date(dbEvent.timestamp),
+      metadata: dbEvent.metadata ? JSON.parse(dbEvent.metadata) : {},
+      firstMessage: dbEvent.firstMessage,
+      status: dbEvent.status,
+      icon: dbEvent.icon
+    };
+  }
+
   // Convert database entry to our format
   private convertDatabaseEntry(dbEntry: any): DatabaseDebugEntry {
     return {
@@ -449,26 +580,111 @@ export class DebugDatabaseService {
       status: dbEntry.status,
       request: {
         systemPrompt: dbEntry.requestSystemPrompt || '',
-        messages: dbEntry.requestMessages ? JSON.parse(dbEntry.requestMessages) : [],
+        messages: this.safeJsonParse(dbEntry.requestMessages) || [],
         temperature: dbEntry.requestTemperature,
         maxTokens: dbEntry.requestMaxTokens,
         model: dbEntry.requestModel,
         knowledgeContext: dbEntry.requestKnowledgeContext,
-        otherParameters: dbEntry.requestOtherParams ? JSON.parse(dbEntry.requestOtherParams) : undefined
+        otherParameters: this.safeJsonParse(dbEntry.requestOtherParams)
       },
       response: {
         content: dbEntry.responseContent || '',
         processingTime: dbEntry.responseProcessingTime || 0,
         usage: dbEntry.responseTokens ? { tokens: dbEntry.responseTokens } : undefined,
-        citedArticles: dbEntry.responseCitedArticles ? JSON.parse(dbEntry.responseCitedArticles) : undefined
+        citedArticles: this.safeJsonParse(dbEntry.responseCitedArticles)
       },
       error: dbEntry.errorMessage
     };
   }
-}
 
-// Import required SQL functions
-import { sql } from 'drizzle-orm';
+  // Safe JSON parsing with error handling and data sanitization
+  private safeJsonParse(jsonString: string | null | undefined): any {
+    if (!jsonString) return undefined;
+    
+    try {
+      const parsed = JSON.parse(jsonString);
+      
+      // If it's an array of articles, sanitize each article
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].title !== undefined) {
+        return parsed.map(article => this.sanitizeArticle(article));
+      }
+      
+      return parsed;
+    } catch (error) {
+      console.error('[Debug DB] Failed to parse JSON:', error);
+      console.error('[Debug DB] Problematic JSON string:', jsonString?.substring(0, 200));
+      
+      // Try to extract readable information from corrupted JSON
+      if (jsonString.includes('"title"') && jsonString.includes('"content"')) {
+        return this.extractArticlesFromCorruptedJson(jsonString);
+      }
+      
+      return undefined;
+    }
+  }
+
+  // Sanitize article data to prevent display issues
+  private sanitizeArticle(article: any): any {
+    if (!article || typeof article !== 'object') return article;
+    
+    return {
+      id: this.sanitizeString(article.id) || 'unknown-id',
+      title: this.sanitizeString(article.title) || 'Untitled Article',
+      summary: this.sanitizeString(article.summary) || '',
+      content: this.sanitizeString(article.content) || '',
+      category: this.sanitizeString(article.category) || 'General',
+      tags: Array.isArray(article.tags) ? article.tags.map((tag: any) => this.sanitizeString(tag)).filter(Boolean) : [],
+      readTime: this.sanitizeString(article.readTime) || '5 min read',
+      author: this.sanitizeString(article.author) || 'Unknown',
+      lastUpdated: article.lastUpdated || new Date().toISOString()
+    };
+  }
+
+  // Sanitize string data to remove null bytes and control characters
+  private sanitizeString(str: any): string {
+    if (typeof str !== 'string') return String(str || '');
+    
+    return str
+      .replace(/\0/g, '') // Remove null bytes
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters
+      .replace(/�/g, '') // Remove replacement characters
+      .trim();
+  }
+
+  // Attempt to extract readable articles from corrupted JSON
+  private extractArticlesFromCorruptedJson(jsonString: string): any[] {
+    try {
+      // Try to find title and content patterns
+      const titleMatches = jsonString.match(/"title":\s*"([^"]+)"/g);
+      const contentMatches = jsonString.match(/"content":\s*"([^"]+)"/g);
+      
+      if (titleMatches && contentMatches) {
+        const articles = [];
+        for (let i = 0; i < Math.min(titleMatches.length, contentMatches.length); i++) {
+          const title = titleMatches[i].match(/"title":\s*"([^"]+)"/)?.[1] || 'Corrupted Article';
+          const content = contentMatches[i].match(/"content":\s*"([^"]+)"/)?.[1] || 'Content unavailable due to data corruption';
+          
+          articles.push({
+            id: `recovered-${i}`,
+            title: this.sanitizeString(title),
+            summary: 'Recovered from corrupted data',
+            content: this.sanitizeString(content),
+            category: 'General',
+            tags: [],
+            readTime: '5 min read',
+            author: 'Unknown',
+            lastUpdated: new Date().toISOString()
+          });
+        }
+        return articles;
+      }
+    } catch (error) {
+      console.error('[Debug DB] Failed to extract from corrupted JSON:', error);
+    }
+    
+    return [];
+  }
+}
 
 // Singleton instance for server-side use
 export const debugDatabaseService = DebugDatabaseService.getInstance();

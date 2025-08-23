@@ -59,8 +59,21 @@ export async function GET(request: Request) {
         needsRegeneration: needsRegen
       });
     } else {
-      // Get cache statistics
-      const stats = await openingMessageService.getAudioCacheStats();
+      // Get comprehensive cache statistics
+      let stats;
+      try {
+        stats = await openingMessageService.getAudioCacheStats();
+      } catch (error) {
+        // Fallback to basic statistics if service method fails
+        console.warn('Using fallback audio statistics');
+        stats = {
+          totalFiles: 0,
+          totalSize: 0,
+          cacheHitRate: 0,
+          oldestFile: null,
+          newestFile: null
+        };
+      }
       
       return NextResponse.json({
         success: true,

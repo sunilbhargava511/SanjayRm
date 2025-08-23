@@ -15,6 +15,10 @@ import {
   Play,
   Clock,
   Eye,
+  Heart,
+  Activity,
+  Award,
+  Salad
 } from 'lucide-react';
 import { Session, Lesson } from '@/types';
 import { EnhancedSessionStorage } from '@/lib/session-enhanced';
@@ -28,7 +32,7 @@ export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [userName] = useState('Michael'); // Could be dynamic from user settings
+  const [userName] = useState('Sarah'); // Could be dynamic from user settings
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   

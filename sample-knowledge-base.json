@@ -1,0 +1,37 @@
+[
+  {
+    "title": "Emergency Fund Essentials",
+    "content": "An emergency fund is a crucial financial safety net that should cover 3-6 months of living expenses. It protects you from unexpected costs like medical bills, car repairs, or job loss. Keep your emergency fund in a high-yield savings account for easy access while earning interest. Start small - even $500 can help with minor emergencies while you build toward your full goal.",
+    "category": "financial-planning",
+    "tags": ["emergency fund", "savings", "financial safety"],
+    "source": "Financial Planning Basics Guide"
+  },
+  {
+    "title": "Understanding Credit Scores",
+    "content": "Your credit score ranges from 300-850 and affects loan rates, rental applications, and more. Key factors include payment history (35%), credit utilization (30%), length of credit history (15%), credit mix (10%), and new credit inquiries (10%). Pay bills on time, keep credit utilization below 30%, and avoid closing old credit cards to maintain a strong score.",
+    "category": "credit-management",
+    "tags": ["credit score", "credit report", "financial health"],
+    "source": "Credit Education Resources"
+  },
+  {
+    "title": "Investment Basics for Beginners",
+    "content": "Investing helps your money grow over time through compound interest. Start with low-cost index funds that track the entire market. Diversification reduces risk by spreading investments across different asset classes. The key principles are: start early, invest regularly, keep costs low, and stay disciplined during market volatility. Consider your risk tolerance and investment timeline when choosing investments.",
+    "category": "investment",
+    "tags": ["investing", "index funds", "compound interest", "diversification"],
+    "source": "Investment Guide for Beginners"
+  },
+  {
+    "title": "Creating a Monthly Budget",
+    "content": "A budget helps you track income and expenses to ensure you're living within your means. Use the 50/30/20 rule as a starting point: 50% for needs, 30% for wants, and 20% for savings and debt repayment. Track expenses for a month to understand your spending patterns. Use budgeting apps or spreadsheets to monitor your progress and adjust as needed.",
+    "category": "budgeting",
+    "tags": ["budget", "50/30/20 rule", "expense tracking", "financial planning"],
+    "source": "Personal Finance Management"
+  },
+  {
+    "title": "Debt Repayment Strategies",
+    "content": "Two popular debt repayment methods are the debt snowball and debt avalanche. The snowball method pays minimum payments on all debts while focusing extra payments on the smallest balance first. The avalanche method targets the highest interest rate debt first. Both work - choose the one that motivates you most. Consider debt consolidation if it lowers your interest rates.",
+    "category": "debt-management",
+    "tags": ["debt repayment", "debt snowball", "debt avalanche", "debt consolidation"],
+    "source": "Debt Management Strategies"
+  }
+]

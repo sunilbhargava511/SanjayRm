@@ -1,5 +1,6 @@
 import { lessonService } from './lesson-service';
 import { getClaudeService } from './claude-enhanced';
+import { qaStartService } from './qa-start-service';
 import { 
   Lesson,
   UserSession,
@@ -269,14 +270,22 @@ ${lesson.videoSummary}
     return `Great! Let's move on to "${lesson.title}". After you watch the video, we can discuss how to apply these concepts to your specific financial situation. I'll start a new conversation when you're ready!`;
   }
 
-  async getLessonIntroMessage(lessonId: string): Promise<string> {
-    const lesson = await lessonService.getLesson(lessonId);
-    if (!lesson) {
+  async getLessonIntroMessage(sessionId: string, lessonId: string): Promise<string> {
+    try {
+      // Use dynamic Q&A generation from qaStartService
+      const dynamicMessage = await qaStartService.generateQAStartMessage(sessionId, lessonId);
+      return dynamicMessage;
+    } catch (error) {
+      console.error('Failed to generate dynamic lesson intro message:', error);
+      
+      // Fallback to generic message
+      const lesson = await lessonService.getLesson(lessonId);
+      if (lesson) {
+        return `Great job completing "${lesson.title}"! I'd love to discuss what you learned. What questions do you have about the concepts we just covered?`;
+      }
+      
       return "Welcome back! Let's discuss what you learned from the lesson.";
     }
-
-    // Use the lesson's question as the intro message
-    return lesson.question;
   }
 }
 
