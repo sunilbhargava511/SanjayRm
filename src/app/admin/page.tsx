@@ -55,6 +55,7 @@ export default function AdminPanel() {
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [showUploadKnowledgeForm, setShowUploadKnowledgeForm] = useState(false);
   const [hasBaseTemplate, setHasBaseTemplate] = useState(false);
+  const [viewingFile, setViewingFile] = useState<KnowledgeBaseFile | null>(null);
   const knowledgeFileInputRef = useRef<HTMLInputElement>(null);
   
   // UI Preferences (stored in localStorage, not database)
@@ -704,6 +705,92 @@ The lesson context will be automatically added to this prompt when used.`;
     } catch (err) {
       setError('Failed to delete knowledge base file');
     }
+  };
+
+  const clearAllKnowledgeFiles = async () => {
+    const fileCount = knowledgeFiles.length;
+    if (fileCount === 0) {
+      setError('No knowledge base files to clear');
+      return;
+    }
+    
+    const confirmed = confirm(
+      `⚠️ WARNING: This will permanently delete ALL ${fileCount} knowledge base files.\n\nThis action cannot be undone. Are you absolutely sure you want to proceed?`
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      setError(null);
+      const deletePromises = knowledgeFiles.map(file => 
+        fetch(`/api/admin/knowledge-base?id=${file.id}`, {
+          method: 'DELETE',
+        })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const failures = results.filter(response => !response.ok);
+      
+      if (failures.length === 0) {
+        await loadData();
+        // Clear success - could add success state here if needed
+        console.log(`Successfully cleared ${fileCount} knowledge base files`);
+      } else {
+        setError(`Failed to delete ${failures.length} out of ${fileCount} files`);
+      }
+    } catch (err) {
+      setError('Failed to clear knowledge base files');
+    }
+  };
+
+  // Helper function to format file content for human readability
+  const formatFileContent = (content: string, fileType: string): { formatted: string; isStructured: boolean } => {
+    if (fileType === 'application/json') {
+      try {
+        // Try to parse as JSON and format it nicely
+        const parsed = JSON.parse(content);
+        if (typeof parsed === 'object' && parsed !== null) {
+          // Create a more readable format for non-technical users
+          let formatted = '';
+          if (Array.isArray(parsed)) {
+            formatted = parsed.map((item, index) => {
+              return `Entry ${index + 1}:\n${JSON.stringify(item, null, 2)}`;
+            }).join('\n\n---\n\n');
+          } else {
+            formatted = JSON.stringify(parsed, null, 2);
+          }
+          return { formatted, isStructured: true };
+        }
+      } catch (e) {
+        // If JSON parsing fails, return as plain text
+        return { formatted: content, isStructured: false };
+      }
+    }
+    
+    return { formatted: content, isStructured: false };
+  };
+
+  // Helper function to extract key information from content for preview
+  const extractContentPreview = (content: string, fileType: string): string => {
+    if (fileType === 'application/json') {
+      try {
+        const parsed = JSON.parse(content);
+        if (typeof parsed === 'object' && parsed !== null) {
+          // Extract key information from JSON
+          const title = parsed.title || 'No title';
+          const category = parsed.category || 'No category';
+          const contentPreview = parsed.content ? 
+            (parsed.content.substring(0, 100) + (parsed.content.length > 100 ? '...' : '')) :
+            'No content';
+          return `Title: ${title}\nCategory: ${category}\nContent: ${contentPreview}`;
+        }
+      } catch (e) {
+        // Fallback to regular preview
+      }
+    }
+    
+    // For non-JSON or if JSON parsing fails, return first 200 characters
+    return content.length > 200 ? content.substring(0, 200) + '...' : content;
   };
 
   // Base Template Management
@@ -1959,13 +2046,25 @@ The lesson context will be automatically added to this prompt when used.`;
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Knowledge Base</h2>
-                <button
-                  onClick={() => setShowUploadKnowledgeForm(!showUploadKnowledgeForm)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Upload className="w-4 h-4" />
-                  {showUploadKnowledgeForm ? 'Cancel' : 'Upload File'}
-                </button>
+                <div className="flex items-center gap-3">
+                  {knowledgeFiles.length > 0 && (
+                    <button
+                      onClick={clearAllKnowledgeFiles}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                      title={`Clear all ${knowledgeFiles.length} knowledge base files`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Clear All ({knowledgeFiles.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowUploadKnowledgeForm(!showUploadKnowledgeForm)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {showUploadKnowledgeForm ? 'Cancel' : 'Upload File'}
+                  </button>
+                </div>
               </div>
 
               {/* Upload Form */}
@@ -2062,16 +2161,36 @@ The lesson context will be automatically added to this prompt when used.`;
                               {file.fileType}
                             </span>
                           </div>
-                          <div className="grid md:grid-cols-2 gap-4">
+                          <div className="grid md:grid-cols-2 gap-4 mb-3">
                             <p className="text-sm text-gray-500">
                               <span className="font-medium">Uploaded:</span> {new Date(file.uploadedAt).toLocaleDateString()}
                             </p>
                             <p className="text-sm text-gray-500">
-                              <span className="font-medium">Type:</span> {file.fileType}
+                              <span className="font-medium">Size:</span> {(file.content.length / 1024).toFixed(1)} KB
                             </p>
+                          </div>
+                          
+                          {/* Content Preview */}
+                          <div className="mt-2 p-3 bg-gray-50 rounded border text-sm">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-700">Preview:</span>
+                              {file.fileType === 'application/json' && (
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">JSON Data</span>
+                              )}
+                            </div>
+                            <pre className="text-gray-600 whitespace-pre-wrap text-xs leading-relaxed max-h-20 overflow-hidden">
+                              {extractContentPreview(file.content, file.fileType)}
+                            </pre>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 ml-4">
+                          <button
+                            onClick={() => setViewingFile(file)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="View content"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => deleteKnowledgeFile(file.id, file.filename)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -2083,6 +2202,90 @@ The lesson context will be automatically added to this prompt when used.`;
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* File Content Viewer Modal */}
+              {viewingFile && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                  <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full flex flex-col">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">View File Content</h3>
+                        <p className="text-sm text-gray-500">{viewingFile.filename}</p>
+                      </div>
+                      <button
+                        onClick={() => setViewingFile(null)}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    <div className="flex-1 overflow-hidden">
+                      <div className="p-4 space-y-4">
+                        {/* File Info */}
+                        <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                          <div>
+                            <span className="font-medium text-gray-700">File Type:</span>
+                            <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                              {viewingFile.fileType}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Uploaded:</span>
+                            <span className="ml-2 text-gray-600">{new Date(viewingFile.uploadedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+
+                        {/* Content Preview for JSON */}
+                        {viewingFile.fileType === 'application/json' && (
+                          <div className="space-y-4">
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <h4 className="font-medium text-blue-900 mb-2">📋 Content Summary</h4>
+                              <pre className="text-sm text-blue-800 whitespace-pre-wrap">
+                                {extractContentPreview(viewingFile.content, viewingFile.fileType)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Main Content Display */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium text-gray-900">File Content:</h4>
+                            {viewingFile.fileType === 'application/json' && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                JSON format - structured data
+                              </span>
+                            )}
+                          </div>
+                          <div className="border border-gray-200 rounded-lg max-h-96 overflow-auto">
+                            <pre className="p-4 text-sm text-gray-800 whitespace-pre-wrap bg-gray-50">
+                              {(() => {
+                                const { formatted, isStructured } = formatFileContent(viewingFile.content, viewingFile.fileType);
+                                return formatted;
+                              })()}
+                            </pre>
+                          </div>
+                        </div>
+
+                        {/* Indexed Content (if different from main content) */}
+                        {viewingFile.indexedContent && viewingFile.indexedContent !== viewingFile.content && (
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-gray-900">Indexed Content (Used for Search):</h4>
+                            <div className="border border-gray-200 rounded-lg max-h-32 overflow-auto">
+                              <pre className="p-4 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50">
+                                {viewingFile.indexedContent}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
