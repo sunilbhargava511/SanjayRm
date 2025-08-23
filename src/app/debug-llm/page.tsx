@@ -358,7 +358,25 @@ export default function DebugLLMPage() {
               </div>
               <div className="p-4 space-y-4 max-h-[550px] overflow-y-auto">
                 {entries.map((entry, index) => (
-                  <div key={entry.id} className="border rounded-lg p-3 hover:shadow-sm transition-shadow">
+                  <div 
+                    key={entry.id} 
+                    className="border rounded-lg p-3 hover:shadow-sm transition-all duration-200 hover:border-blue-200"
+                    data-entry-id={entry.id}
+                    onMouseEnter={(e) => {
+                      const outputCard = document.querySelector(`[data-output-entry-id="${entry.id}"]`);
+                      if (outputCard) {
+                        outputCard.classList.add('ring-2', 'ring-blue-200', 'bg-blue-50');
+                        e.currentTarget.classList.add('ring-2', 'ring-blue-200', 'bg-blue-50');
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const outputCard = document.querySelector(`[data-output-entry-id="${entry.id}"]`);
+                      if (outputCard) {
+                        outputCard.classList.remove('ring-2', 'ring-blue-200', 'bg-blue-50');
+                        e.currentTarget.classList.remove('ring-2', 'ring-blue-200', 'bg-blue-50');
+                      }
+                    }}
+                  >
                     {/* Entry Header */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -372,9 +390,19 @@ export default function DebugLLMPage() {
                         <span className="text-sm font-medium text-gray-700">{entry.type}</span>
                         <span className="text-xs text-gray-500">{entry.request.model}</span>
                       </div>
-                      <span className="text-xs text-gray-500">
-                        {new Date(entry.timestamp).toLocaleTimeString()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {new Date(entry.timestamp).toLocaleString()}
+                        </span>
+                        <span 
+                          className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                          style={{ backgroundColor: `hsl(${(entry.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) % 360)}, 60%, 70%)` }}
+                          title={`Entry ID: ${entry.id.slice(-8)}`}
+                        />
+                        <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1 rounded">
+                          #{index + 1}
+                        </span>
+                      </div>
                     </div>
                     
                     {/* Input Summaries with Eye Icons */}
@@ -470,7 +498,25 @@ export default function DebugLLMPage() {
               </div>
               <div className="p-4 space-y-4 max-h-[550px] overflow-y-auto">
                 {entries.map((entry, index) => (
-                  <div key={`output-${entry.id}`} className="border rounded-lg p-3 hover:shadow-sm transition-shadow">
+                  <div 
+                    key={`output-${entry.id}`} 
+                    className="border rounded-lg p-3 hover:shadow-sm transition-all duration-200 hover:border-green-200"
+                    data-output-entry-id={entry.id}
+                    onMouseEnter={(e) => {
+                      const inputCard = document.querySelector(`[data-entry-id="${entry.id}"]`);
+                      if (inputCard) {
+                        inputCard.classList.add('ring-2', 'ring-green-200', 'bg-green-50');
+                        e.currentTarget.classList.add('ring-2', 'ring-green-200', 'bg-green-50');
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const inputCard = document.querySelector(`[data-entry-id="${entry.id}"]`);
+                      if (inputCard) {
+                        inputCard.classList.remove('ring-2', 'ring-green-200', 'bg-green-50');
+                        e.currentTarget.classList.remove('ring-2', 'ring-green-200', 'bg-green-50');
+                      }
+                    }}
+                  >
                     {/* Response Header */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -478,7 +524,15 @@ export default function DebugLLMPage() {
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{entry.response.processingTime}ms</span>
                           <span>•</span>
-                          <span>{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                          <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                          <span 
+                            className="w-3 h-3 rounded-full border-2 border-white shadow-sm ml-2"
+                            style={{ backgroundColor: `hsl(${(entry.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) % 360)}, 60%, 70%)` }}
+                            title={`Entry ID: ${entry.id.slice(-8)}`}
+                          />
+                          <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1 rounded">
+                            #{index + 1}
+                          </span>
                         </div>
                       </div>
                       <button
