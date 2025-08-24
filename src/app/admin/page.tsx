@@ -33,6 +33,7 @@ import {
   SessionReport 
 } from '@/types';
 import AppHeader from '@/components/AppHeader';
+import CalculatorUpload from '@/components/CalculatorUpload';
 
 type AdminTab = 'lessons' | 'calculators' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages' | 'audio-management';
 type SettingsTab = 'general' | 'voice' | 'ui';
@@ -1742,6 +1743,15 @@ The lesson context will be automatically added to this prompt when used.`;
                   </div>
                 </form>
               )}
+
+              {/* Calculator Upload Section */}
+              <CalculatorUpload 
+                onUploadSuccess={(calculator) => {
+                  setCalculators(prev => [...prev, calculator]);
+                  // You can add a success message here if needed
+                }}
+                className="mb-6"
+              />
 
               {/* Calculators List */}
               <div className="space-y-4">
