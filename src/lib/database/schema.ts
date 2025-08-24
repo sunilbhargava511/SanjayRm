@@ -232,6 +232,18 @@ export const audioCache = sqliteTable('audio_cache', {
   accessCount: integer('access_count').default(0),
 });
 
+// Calculators for financial tools
+export const calculators = sqliteTable('calculators', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  description: text('description').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  active: integer('active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // Export types for TypeScript
 export type Lesson = typeof lessons.$inferSelect;
 export type NewLesson = typeof lessons.$inferInsert;
@@ -281,3 +293,6 @@ export type NewAudioCache = typeof audioCache.$inferInsert;
 
 export type SessionEvent = typeof sessionEvents.$inferSelect;
 export type NewSessionEvent = typeof sessionEvents.$inferInsert;
+
+export type Calculator = typeof calculators.$inferSelect;
+export type NewCalculator = typeof calculators.$inferInsert;

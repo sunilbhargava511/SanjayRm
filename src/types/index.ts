@@ -258,3 +258,15 @@ export interface LessonProgress {
   totalLessons: number;
   percentComplete: number;
 }
+
+// Calculator System Types
+export interface Calculator {
+  id: string;
+  name: string;
+  url: string;
+  description: string;
+  orderIndex: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

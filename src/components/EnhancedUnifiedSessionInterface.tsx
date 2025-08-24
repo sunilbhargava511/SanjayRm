@@ -29,13 +29,15 @@ import {
   Zap,
   Award,
   CheckCircle,
-  Bug
+  Bug,
+  Calculator2
 } from 'lucide-react';
 import ConversationPanel from './ConversationPanel';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ConversationalAI from './ConversationalAI-Enhanced';
 import AppHeader from './AppHeader';
 import AudioPlayer from './AudioPlayer';
+import CalculatorsList from './CalculatorsList';
 import { Lesson } from '@/types';
 
 interface SessionData {
@@ -47,7 +49,7 @@ interface SessionData {
   startedAt: string;
 }
 
-type InterfaceMode = 'session_select' | 'lesson_selection' | 'video' | 'conversation';
+type InterfaceMode = 'session_select' | 'lesson_selection' | 'calculators' | 'video' | 'conversation';
 type ConnectionStatus = 'idle' | 'requesting_permission' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export default function EnhancedUnifiedSessionInterface() {
@@ -510,7 +512,7 @@ export default function EnhancedUnifiedSessionInterface() {
                 </div>
 
                 {/* Main Action Cards */}
-                <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
                   {/* Open-ended conversation */}
                   <div className="group relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
@@ -595,6 +597,47 @@ export default function EnhancedUnifiedSessionInterface() {
                       >
                         <div className="flex items-center justify-center gap-2">
                           Browse Lessons
+                          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Financial Calculators */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-purple-200 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
+                      <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <Calculator2 className="w-8 h-8 text-purple-600" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                        Financial Calculators
+                      </h2>
+                      <p className="text-gray-600 mb-8 text-center leading-relaxed">
+                        Access powerful financial tools for mortgage calculations, retirement planning, budget analysis, and investment projections.
+                      </p>
+                      
+                      <div className="space-y-3 mb-8">
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Mortgage & loan calculators
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Retirement planning tools
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Investment & budget analyzers
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => setCurrentMode('calculators')}
+                        className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-xl hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          Browse Calculators
                           <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                         </div>
                       </button>
@@ -748,6 +791,14 @@ export default function EnhancedUnifiedSessionInterface() {
               )}
             </div>
           </div>
+        );
+
+      case 'calculators':
+        return (
+          <CalculatorsList 
+            onBack={() => setCurrentMode('session_select')}
+            className=""
+          />
         );
 
       case 'video':

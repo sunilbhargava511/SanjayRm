@@ -21,10 +21,12 @@ import {
   Play,
   RefreshCw,
   Headphones,
-  BarChart2
+  BarChart2,
+  Calculator2
 } from 'lucide-react';
 import { 
   Lesson,
+  Calculator,
   AdminSettings, 
   SystemPrompt, 
   KnowledgeBaseFile,
@@ -32,7 +34,7 @@ import {
 } from '@/types';
 import AppHeader from '@/components/AppHeader';
 
-type AdminTab = 'lessons' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages' | 'audio-management';
+type AdminTab = 'lessons' | 'calculators' | 'settings' | 'prompts' | 'knowledge' | 'reports' | 'opening-messages' | 'audio-management';
 type SettingsTab = 'general' | 'voice' | 'ui';
 
 
@@ -40,6 +42,7 @@ export default function AdminPanel() {
   const [currentTab, setCurrentTab] = useState<AdminTab>('lessons');
   const [currentSettingsTab, setCurrentSettingsTab] = useState<SettingsTab>('general');
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [calculators, setCalculators] = useState<Calculator[]>([]);
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeBaseFile[]>([]);
@@ -50,8 +53,11 @@ export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedLesson, setDraggedLesson] = useState<string | null>(null);
+  const [draggedCalculator, setDraggedCalculator] = useState<string | null>(null);
   const [showLessonForm, setShowLessonForm] = useState(false);
+  const [showCalculatorForm, setShowCalculatorForm] = useState(false);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [editingCalculator, setEditingCalculator] = useState<Calculator | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [showUploadKnowledgeForm, setShowUploadKnowledgeForm] = useState(false);
   const [hasBaseTemplate, setHasBaseTemplate] = useState(false);
@@ -100,8 +106,9 @@ export default function AdminPanel() {
     setError(null);
     
     try {
-      const [lessonsRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes, openingMessagesRes] = await Promise.all([
+      const [lessonsRes, calculatorsRes, settingsRes, promptsRes, knowledgeRes, reportsRes, templateRes, openingMessagesRes] = await Promise.all([
         fetch('/api/lessons'),
+        fetch('/api/calculators'),
         fetch('/api/admin/settings'),
         fetch('/api/admin/prompts'),
         fetch('/api/admin/knowledge-base'),
@@ -115,6 +122,10 @@ export default function AdminPanel() {
         setLessons(lessonsData.lessons || []);
       }
 
+      if (calculatorsRes.ok) {
+        const calculatorsData = await calculatorsRes.json();
+        setCalculators(calculatorsData.calculators || []);
+      }
 
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
@@ -963,6 +974,7 @@ The lesson context will be automatically added to this prompt when used.`;
             <nav className="p-4 space-y-2">
               {[
                 { id: 'lessons', label: 'Lessons', icon: FileText, count: lessons.length },
+                { id: 'calculators', label: 'Calculators', icon: Calculator2, count: calculators.length },
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
                 { id: 'opening-messages', label: 'Opening Messages', icon: MessageSquare },
@@ -1598,6 +1610,220 @@ The lesson context will be automatically added to this prompt when used.`;
                 </form>
               )}
 
+            </div>
+          )}
+
+          {currentTab === 'calculators' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Financial Calculators</h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-500">
+                    {calculators.length} calculators
+                  </span>
+                  <button
+                    onClick={() => setShowCalculatorForm(!showCalculatorForm)}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {showCalculatorForm ? 'Cancel' : 'Add Calculator'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add/Edit Calculator Form */}
+              {showCalculatorForm && (
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const name = formData.get('name') as string;
+                    const url = formData.get('url') as string;
+                    const description = formData.get('description') as string;
+
+                    try {
+                      const isEditing = !!editingCalculator;
+                      const response = await fetch('/api/calculators', {
+                        method: isEditing ? 'PUT' : 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(isEditing ? {
+                          action: 'update',
+                          calculatorId: editingCalculator.id,
+                          name,
+                          url,
+                          description
+                        } : {
+                          action: 'create',
+                          name,
+                          url,
+                          description,
+                          orderIndex: calculators.length
+                        })
+                      });
+                      
+                      if (response.ok) {
+                        loadData();
+                        setShowCalculatorForm(false);
+                        setEditingCalculator(null);
+                        (e.target as HTMLFormElement).reset();
+                      }
+                    } catch (error) {
+                      console.error('Error saving calculator:', error);
+                    }
+                  }}
+                  className="bg-purple-50 p-6 rounded-lg mb-6 border border-purple-200"
+                >
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    {editingCalculator ? 'Edit Calculator' : 'Add New Calculator'}
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                        Calculator Name *
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        defaultValue={editingCalculator?.name || ''}
+                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="e.g., Mortgage Calculator"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-1">
+                        Calculator URL *
+                      </label>
+                      <input
+                        type="url"
+                        name="url"
+                        required
+                        defaultValue={editingCalculator?.url || ''}
+                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="https://www.example.com/calculator"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                        Description *
+                      </label>
+                      <textarea
+                        name="description"
+                        required
+                        rows={3}
+                        defaultValue={editingCalculator?.description || ''}
+                        className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="Describe what this calculator does and how it helps users..."
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 mt-6">
+                    <button
+                      type="submit"
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      {editingCalculator ? 'Update Calculator' : 'Add Calculator'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCalculatorForm(false);
+                        setEditingCalculator(null);
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Calculators List */}
+              <div className="space-y-4">
+                {calculators.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Calculator2 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg mb-2">No calculators added yet</p>
+                    <p>Add your first financial calculator to get started</p>
+                  </div>
+                ) : (
+                  calculators.map((calculator) => (
+                    <div
+                      key={calculator.id}
+                      className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Calculator2 className="w-5 h-5 text-purple-600" />
+                            <h4 className="font-semibold text-gray-900">{calculator.name}</h4>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              calculator.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {calculator.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          
+                          <p className="text-gray-600 text-sm mb-2">{calculator.description}</p>
+                          
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>Order: {calculator.orderIndex}</span>
+                            <span>•</span>
+                            <a
+                              href={calculator.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-purple-600 hover:text-purple-700 underline"
+                            >
+                              {calculator.url}
+                            </a>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => {
+                              setEditingCalculator(calculator);
+                              setShowCalculatorForm(true);
+                            }}
+                            className="p-2 text-gray-500 hover:text-purple-600 rounded-md hover:bg-white transition-colors"
+                            title="Edit calculator"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          
+                          <button
+                            onClick={async () => {
+                              if (confirm('Are you sure you want to delete this calculator?')) {
+                                try {
+                                  const response = await fetch(`/api/calculators?id=${calculator.id}`, {
+                                    method: 'DELETE'
+                                  });
+                                  
+                                  if (response.ok) {
+                                    loadData();
+                                  }
+                                } catch (error) {
+                                  console.error('Error deleting calculator:', error);
+                                }
+                              }
+                            }}
+                            className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-white transition-colors"
+                            title="Delete calculator"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
