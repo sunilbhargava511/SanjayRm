@@ -67,7 +67,7 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
     }
   };
 
-  const colors = colorVariants[typeInfo.color];
+  const colors = colorVariants[typeInfo.color as keyof typeof colorVariants];
   const TypeIcon = typeInfo.icon;
 
   return (
