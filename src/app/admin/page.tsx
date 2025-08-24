@@ -22,7 +22,7 @@ import {
   RefreshCw,
   Headphones,
   BarChart2,
-  Calculator
+  Calculator as CalculatorIcon
 } from 'lucide-react';
 import { 
   Lesson,
@@ -974,7 +974,7 @@ The lesson context will be automatically added to this prompt when used.`;
             <nav className="p-4 space-y-2">
               {[
                 { id: 'lessons', label: 'Lessons', icon: FileText, count: lessons.length },
-                { id: 'calculators', label: 'Calculators', icon: Calculator, count: calculators.length },
+                { id: 'calculators', label: 'Calculators', icon: CalculatorIcon, count: calculators.length },
                 { id: 'prompts', label: 'System Prompts', icon: Database, count: prompts.length },
                 { id: 'knowledge', label: 'Knowledge Base', icon: Upload, count: knowledgeFiles.length },
                 { id: 'opening-messages', label: 'Opening Messages', icon: MessageSquare },
@@ -1747,7 +1747,7 @@ The lesson context will be automatically added to this prompt when used.`;
               <div className="space-y-4">
                 {calculators.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <Calculator className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                    <CalculatorIcon className="w-12 h-12 mx-auto mb-4 opacity-30" />
                     <p className="text-lg mb-2">No calculators added yet</p>
                     <p>Add your first financial calculator to get started</p>
                   </div>
@@ -1760,7 +1760,7 @@ The lesson context will be automatically added to this prompt when used.`;
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <Calculator className="w-5 h-5 text-purple-600" />
+                            <CalculatorIcon className="w-5 h-5 text-purple-600" />
                             <h4 className="font-semibold text-gray-900">{calculator.name}</h4>
                             <span className={`text-xs px-2 py-1 rounded-full ${
                               calculator.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'

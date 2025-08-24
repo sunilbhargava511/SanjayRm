@@ -49,16 +49,17 @@ export class CalculatorService {
   }
 
   async getAllCalculators(activeOnly: boolean = false): Promise<Calculator[]> {
-    let query = db
+    const queryBuilder = db
       .select()
-      .from(schema.calculators)
-      .orderBy(asc(schema.calculators.orderIndex));
+      .from(schema.calculators);
 
-    if (activeOnly) {
-      query = query.where(eq(schema.calculators.active, true));
-    }
+    const calculators = activeOnly 
+      ? await queryBuilder
+          .where(eq(schema.calculators.active, true))
+          .orderBy(asc(schema.calculators.orderIndex))
+      : await queryBuilder
+          .orderBy(asc(schema.calculators.orderIndex));
 
-    const calculators = await query;
     return calculators.map(calc => this.convertDatabaseCalculator(calc));
   }
 
