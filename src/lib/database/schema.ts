@@ -236,10 +236,15 @@ export const audioCache = sqliteTable('audio_cache', {
 export const calculators = sqliteTable('calculators', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  url: text('url').notNull(),
+  url: text('url'), // Optional for code-based calculators
   description: text('description').notNull(),
+  calculatorType: text('calculator_type').notNull().default('url'), // 'url' | 'code'
+  codeContent: text('code_content'), // Stores HTML/CSS/JS code for local calculators
+  artifactUrl: text('artifact_url'), // Original Claude artifact URL for reference
+  fileName: text('file_name'), // For tracking uploaded files
   orderIndex: integer('order_index').notNull().default(0),
   active: integer('active', { mode: 'boolean' }).default(true),
+  isPublished: integer('is_published', { mode: 'boolean' }).default(true), // Allow draft state
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
 });
