@@ -1774,14 +1774,18 @@ The lesson context will be automatically added to this prompt when used.`;
                           <div className="flex items-center gap-4 text-xs text-gray-500">
                             <span>Order: {calculator.orderIndex}</span>
                             <span>•</span>
-                            <a
-                              href={calculator.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-purple-600 hover:text-purple-700 underline"
-                            >
-                              {calculator.url}
-                            </a>
+                            {calculator.url ? (
+                              <a
+                                href={calculator.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:text-purple-700 underline"
+                              >
+                                {calculator.url}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">Code-based calculator</span>
+                            )}
                           </div>
                         </div>
                         
