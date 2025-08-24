@@ -263,10 +263,15 @@ export interface LessonProgress {
 export interface Calculator {
   id: string;
   name: string;
-  url: string;
+  url: string | null;
   description: string;
+  calculatorType: 'url' | 'code';
+  codeContent: string | null;
+  artifactUrl: string | null;
+  fileName: string | null;
   orderIndex: number;
   active: boolean;
+  isPublished: boolean;
   createdAt: string;
   updatedAt: string;
 }
