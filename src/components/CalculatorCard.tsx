@@ -15,7 +15,7 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
     if (calculator.calculatorType === 'code') {
       // Navigate to the hosted calculator page
       router.push(`/calculators/${calculator.id}`);
-    } else {
+    } else if (calculator.url) {
       // Open external URL in new window/tab
       window.open(calculator.url, '_blank', 'noopener,noreferrer');
     }
