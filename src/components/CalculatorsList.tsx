@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator2, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import { Calculator as CalculatorIcon, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import CalculatorCard from './CalculatorCard';
 import AppHeader from './AppHeader';
 import { Calculator } from '@/types';
@@ -110,7 +110,7 @@ export default function CalculatorsList({ onBack, className = '' }: CalculatorsL
           </button>
           
           <div className="text-center mb-8">
-            <Calculator2 className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            <CalculatorIcon className="w-16 h-16 text-blue-600 mx-auto mb-4" />
             <h2 className="text-4xl font-bold text-gray-900 mb-4">Financial Calculators</h2>
             <p className="text-gray-600 text-lg max-w-2xl mx-auto">
               Access powerful financial tools to help you make informed decisions about mortgages, retirement, investments, and more.
@@ -132,7 +132,7 @@ export default function CalculatorsList({ onBack, className = '' }: CalculatorsL
         ) : (
           /* Empty State */
           <div className="text-center py-16">
-            <Calculator2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <CalculatorIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Calculators Available</h3>
             <p className="text-gray-600 mb-6">
               Financial calculators will appear here once they are configured by the administrator.

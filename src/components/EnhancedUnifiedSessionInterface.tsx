@@ -30,7 +30,7 @@ import {
   Award,
   CheckCircle,
   Bug,
-  Calculator2
+  Calculator
 } from 'lucide-react';
 import ConversationPanel from './ConversationPanel';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
@@ -608,7 +608,7 @@ export default function EnhancedUnifiedSessionInterface() {
                     <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
                     <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-purple-200 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
                       <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <Calculator2 className="w-8 h-8 text-purple-600" />
+                        <Calculator className="w-8 h-8 text-purple-600" />
                       </div>
                       <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
                         Financial Calculators

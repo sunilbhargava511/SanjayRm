@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calculator2, ExternalLink } from 'lucide-react';
+import { Calculator as CalculatorIcon, ExternalLink } from 'lucide-react';
 import { Calculator } from '@/types';
 
 interface CalculatorCardProps {
@@ -25,7 +25,7 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-            <Calculator2 className="w-6 h-6 text-blue-600" />
+            <CalculatorIcon className="w-6 h-6 text-blue-600" />
           </div>
           <div className="text-xs text-blue-600 font-medium bg-blue-100 px-3 py-1 rounded-full flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />
@@ -46,7 +46,7 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
         {/* Launch Button */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Calculator2 className="w-4 h-4" />
+            <CalculatorIcon className="w-4 h-4" />
             Financial Calculator
           </div>
           <div className="flex items-center gap-2 text-blue-600 font-medium text-sm group-hover:gap-3 transition-all">
