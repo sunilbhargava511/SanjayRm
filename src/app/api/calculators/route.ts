@@ -52,28 +52,61 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'create': {
-        const { name, url, description, orderIndex } = data;
+        const { 
+          name, 
+          url, 
+          description, 
+          orderIndex, 
+          calculatorType, 
+          codeContent, 
+          artifactUrl, 
+          fileName, 
+          isPublished 
+        } = data;
         
-        if (!name || !url || !description) {
+        // Validate required fields
+        if (!name || !description) {
           return NextResponse.json(
-            { success: false, error: 'Missing required fields: name, url, description' },
+            { success: false, error: 'Missing required fields: name, description' },
             { status: 400 }
           );
         }
 
-        // Validate URL
-        if (!calculatorService.validateUrl(url)) {
-          return NextResponse.json(
-            { success: false, error: 'Invalid URL format' },
-            { status: 400 }
-          );
+        const type = calculatorType || 'url';
+
+        // Validate type-specific requirements
+        if (type === 'url') {
+          if (!url) {
+            return NextResponse.json(
+              { success: false, error: 'URL is required for URL-based calculators' },
+              { status: 400 }
+            );
+          }
+          if (!calculatorService.validateUrl(url)) {
+            return NextResponse.json(
+              { success: false, error: 'Invalid URL format' },
+              { status: 400 }
+            );
+          }
+        } else if (type === 'code') {
+          if (!codeContent) {
+            return NextResponse.json(
+              { success: false, error: 'Code content is required for code-based calculators' },
+              { status: 400 }
+            );
+          }
         }
 
         const calculator = await calculatorService.createCalculator({
           name,
           url,
           description,
-          orderIndex
+          orderIndex,
+          calculatorType: type,
+          codeContent,
+          artifactUrl,
+          fileName,
+          isPublished
         });
 
         return NextResponse.json({ 

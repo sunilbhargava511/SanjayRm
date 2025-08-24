@@ -35,14 +35,14 @@ export class ClaudeArtifactProcessor {
    * Check if URL is a Claude artifact
    */
   static isClaudeArtifactUrl(url: string): boolean {
-    return this.CLAUDE_ARTIFACT_REGEX.test(url);
+    return ClaudeArtifactProcessor.CLAUDE_ARTIFACT_REGEX.test(url);
   }
 
   /**
    * Extract artifact ID from Claude URL
    */
   static extractArtifactId(url: string): string | null {
-    const match = url.match(this.CLAUDE_ARTIFACT_REGEX);
+    const match = url.match(ClaudeArtifactProcessor.CLAUDE_ARTIFACT_REGEX);
     return match ? match[1] : null;
   }
 
@@ -58,7 +58,7 @@ export class ClaudeArtifactProcessor {
       // 2. Parse the HTML to extract the artifact content
       // 3. Identify the content type and dependencies
       
-      const artifactId = this.extractArtifactId(url);
+      const artifactId = ClaudeArtifactProcessor.extractArtifactId(url);
       if (!artifactId) return null;
 
       // Simulated response - in real implementation this would fetch from Claude

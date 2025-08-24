@@ -8,9 +8,14 @@ export class CalculatorService {
   // Calculator Management
   async createCalculator(calculatorData: {
     name: string;
-    url: string;
+    url?: string;
     description: string;
     orderIndex?: number;
+    calculatorType?: 'url' | 'code';
+    codeContent?: string;
+    artifactUrl?: string;
+    fileName?: string;
+    isPublished?: boolean;
   }): Promise<Calculator> {
     const calculatorId = `calc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -21,13 +26,28 @@ export class CalculatorService {
       orderIndex = existingCalculators.length;
     }
     
+    const calculatorType = calculatorData.calculatorType || 'url';
+    
+    // Validate required fields based on calculator type
+    if (calculatorType === 'url' && !calculatorData.url) {
+      throw new Error('URL is required for URL-based calculators');
+    }
+    if (calculatorType === 'code' && !calculatorData.codeContent) {
+      throw new Error('Code content is required for code-based calculators');
+    }
+    
     const newCalculator = await db.insert(schema.calculators).values({
       id: calculatorId,
       name: calculatorData.name,
-      url: calculatorData.url,
+      url: calculatorData.url || null,
       description: calculatorData.description,
+      calculatorType,
+      codeContent: calculatorData.codeContent || null,
+      artifactUrl: calculatorData.artifactUrl || null,
+      fileName: calculatorData.fileName || null,
       orderIndex,
       active: true,
+      isPublished: calculatorData.isPublished ?? true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }).returning();
