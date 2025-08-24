@@ -5,13 +5,14 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const calculator = await db
       .select()
       .from(calculators)
-      .where(eq(calculators.id, params.id))
+      .where(eq(calculators.id, resolvedParams.id))
       .limit(1);
 
     if (!calculator || calculator.length === 0) {
@@ -49,9 +50,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const body = await request.json();
     const { name, url, description, calculatorType, codeContent, artifactUrl, fileName, orderIndex, active, isPublished } = body;
 
@@ -82,7 +84,7 @@ export async function PUT(
     const existingCalculator = await db
       .select()
       .from(calculators)
-      .where(eq(calculators.id, params.id))
+      .where(eq(calculators.id, resolvedParams.id))
       .limit(1);
 
     if (!existingCalculator || existingCalculator.length === 0) {
@@ -121,7 +123,7 @@ export async function PUT(
     const updatedCalculator = await db
       .update(calculators)
       .set(updateData)
-      .where(eq(calculators.id, params.id))
+      .where(eq(calculators.id, resolvedParams.id))
       .returning();
 
     return NextResponse.json({
@@ -143,14 +145,15 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     // Check if calculator exists
     const existingCalculator = await db
       .select()
       .from(calculators)
-      .where(eq(calculators.id, params.id))
+      .where(eq(calculators.id, resolvedParams.id))
       .limit(1);
 
     if (!existingCalculator || existingCalculator.length === 0) {
@@ -163,7 +166,7 @@ export async function DELETE(
     // Delete calculator
     await db
       .delete(calculators)
-      .where(eq(calculators.id, params.id));
+      .where(eq(calculators.id, resolvedParams.id));
 
     return NextResponse.json({
       success: true,
