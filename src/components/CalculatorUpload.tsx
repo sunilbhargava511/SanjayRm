@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Link, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Upload, Link, FileText, AlertCircle, CheckCircle, Loader2, Wand2 } from 'lucide-react';
 
 interface CalculatorUploadProps {
   onUploadSuccess?: (calculator: any) => void;
@@ -13,6 +13,8 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [autoAnalyze, setAutoAnalyze] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -21,10 +23,13 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
     setFile(selectedFile || null);
     setError(null);
     
-    if (selectedFile && !name) {
-      // Auto-populate name from filename
-      const fileName = selectedFile.name.replace(/\.(tsx|ts|jsx|js|html|htm)$/i, '');
-      setName(fileName.charAt(0).toUpperCase() + fileName.slice(1).replace(/[-_]/g, ' '));
+    // Clear existing data when file changes
+    setName('');
+    setDescription('');
+    
+    // Auto-analyze if enabled and file is selected
+    if (selectedFile && autoAnalyze) {
+      analyzeCalculator();
     }
   };
 
@@ -32,9 +37,62 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
     setArtifactUrl(event.target.value);
     setError(null);
     
-    // Auto-populate name if empty and it's a Claude artifact
-    if (event.target.value.includes('claude.ai') && !name) {
-      setName('Claude Artifact Calculator');
+    // Clear existing data when URL changes
+    setName('');
+    setDescription('');
+    
+    // Auto-analyze if enabled and URL is provided
+    if (event.target.value && autoAnalyze && event.target.value.includes('claude.ai')) {
+      // Delay analysis slightly to let the user finish typing
+      setTimeout(() => {
+        if (event.target.value === artifactUrl) {
+          analyzeCalculator();
+        }
+      }, 1000);
+    }
+  };
+
+  const analyzeCalculator = async () => {
+    if (!file && !artifactUrl) return;
+    
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      const formData = new FormData();
+      
+      if (uploadMode === 'file' && file) {
+        formData.append('file', file);
+      } else if (uploadMode === 'url' && artifactUrl) {
+        formData.append('artifactUrl', artifactUrl);
+      } else {
+        return;
+      }
+
+      const response = await fetch('/api/calculators/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Analysis failed');
+      }
+
+      if (data.analysis) {
+        setName(data.analysis.name);
+        setDescription(data.analysis.description);
+        
+        // Show success message briefly
+        setSuccess(`Analysis complete! Confidence: ${data.analysis.confidence}`);
+        setTimeout(() => setSuccess(null), 3000);
+      }
+
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Analysis failed');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -48,6 +106,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
       const formData = new FormData();
       formData.append('name', name);
       formData.append('description', description);
+      formData.append('autoAnalyze', autoAnalyze.toString());
 
       if (uploadMode === 'file') {
         if (!file) {
@@ -176,35 +235,91 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
           </div>
         )}
 
+        {/* Auto-Analysis Toggle */}
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Wand2 className="w-4 h-4 text-purple-600" />
+            <div>
+              <p className="text-sm font-medium text-gray-900">Auto-analyze Calculator</p>
+              <p className="text-xs text-gray-500">Automatically generate name and description using AI</p>
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoAnalyze}
+              onChange={(e) => setAutoAnalyze(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
+        {/* Manual Analysis Button */}
+        {!autoAnalyze && (file || artifactUrl) && (
+          <button
+            type="button"
+            onClick={analyzeCalculator}
+            disabled={isAnalyzing}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-4 h-4" />
+                Analyze Calculator
+              </>
+            )}
+          </button>
+        )}
+
         {/* Name and Description */}
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
             Calculator Name
           </label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter calculator name"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          />
+          <div className="relative">
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={autoAnalyze ? "AI will generate name..." : "Enter calculator name"}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isAnalyzing ? 'pr-10' : ''}`}
+              required={!autoAnalyze}
+            />
+            {isAnalyzing && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
             Description
           </label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter calculator description"
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          />
+          <div className="relative">
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={autoAnalyze ? "AI will generate description..." : "Enter calculator description"}
+              rows={3}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isAnalyzing ? 'pr-10' : ''}`}
+              required={!autoAnalyze}
+            />
+            {isAnalyzing && (
+              <div className="absolute right-3 top-3">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Error/Success Messages */}
@@ -225,13 +340,18 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isUploading || (!file && !artifactUrl) || !name || !description}
+          disabled={isUploading || isAnalyzing || (!file && !artifactUrl) || (!autoAnalyze && (!name || !description))}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isUploading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
               Uploading...
+            </>
+          ) : isAnalyzing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Analyzing...
             </>
           ) : (
             <>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculatorService } from '@/lib/calculator-service';
 import { ClaudeArtifactProcessor, claudeArtifactUtils } from '@/lib/claude-artifact-processor';
+import { CalculatorAnalyzer } from '@/lib/calculator-analyzer';
 import { initializeDatabase } from '@/lib/database';
 
 // Initialize database on first API call
@@ -20,19 +21,46 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const artifactUrl = formData.get('artifactUrl') as string;
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    
-    if (!name || !description) {
-      return NextResponse.json(
-        { success: false, error: 'Name and description are required' },
-        { status: 400 }
-      );
-    }
+    let name = formData.get('name') as string;
+    let description = formData.get('description') as string;
+    const autoAnalyze = formData.get('autoAnalyze') as string;
 
     let codeContent = '';
     let fileName = '';
     let processedArtifactUrl = '';
+
+    // Auto-analyze calculator if requested (and name/description are missing)
+    if (autoAnalyze === 'true' && (!name || !description)) {
+      try {
+        let analysis;
+        
+        if (file && file.size > 0) {
+          const fileContent = await file.text();
+          analysis = await CalculatorAnalyzer.analyzeCalculatorCode(fileContent, file.name);
+        } else if (artifactUrl) {
+          analysis = await CalculatorAnalyzer.analyzeClaudeArtifact(artifactUrl);
+        }
+        
+        if (analysis) {
+          // Use analyzed values if not provided by user
+          if (!name) name = analysis.name;
+          if (!description) description = analysis.description;
+          
+          console.log(`Auto-analysis completed with confidence: ${analysis.confidence}`);
+        }
+      } catch (error) {
+        console.error('Auto-analysis failed:', error);
+        // Continue without auto-analysis
+      }
+    }
+
+    // Validate required fields after potential auto-analysis
+    if (!name || !description) {
+      return NextResponse.json(
+        { success: false, error: 'Name and description are required. Enable auto-analysis or provide them manually.' },
+        { status: 400 }
+      );
+    }
 
     // Handle file upload
     if (file && file.size > 0) {
