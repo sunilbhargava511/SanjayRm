@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, AlertTriangle, RefreshCw, Monitor } from 'lucide-react';
 import type { Calculator } from '@/lib/database/schema';
 
 interface CalculatorClientProps {
@@ -12,6 +12,10 @@ interface CalculatorClientProps {
 export default function CalculatorClient({ calculator }: CalculatorClientProps) {
   const router = useRouter();
   const [iframeError, setIframeError] = useState(false);
+  const [displayMode, setDisplayMode] = useState<'iframe' | 'standalone'>('iframe');
+  const [standaloneUrl, setStandaloneUrl] = useState<string | null>(null);
+  const [checkingStandalone, setCheckingStandalone] = useState(false);
+  const [generatingStandalone, setGeneratingStandalone] = useState(false);
 
   const handleBack = () => {
     router.back();
@@ -26,6 +30,60 @@ export default function CalculatorClient({ calculator }: CalculatorClientProps) 
       window.open(calculator.url, '_blank', 'noopener,noreferrer');
     }
   };
+
+  // Check if standalone calculator exists
+  const checkStandaloneCalculator = async () => {
+    if (calculator.calculatorType !== 'code') return;
+    
+    setCheckingStandalone(true);
+    try {
+      const response = await fetch(`/api/calculators/standalone?id=${calculator.id}`);
+      const data = await response.json();
+      
+      if (data.success && data.exists) {
+        setStandaloneUrl(data.standaloneUrl);
+      }
+    } catch (error) {
+      console.error('Failed to check standalone calculator:', error);
+    } finally {
+      setCheckingStandalone(false);
+    }
+  };
+
+  // Generate standalone calculator
+  const generateStandaloneCalculator = async () => {
+    setGeneratingStandalone(true);
+    try {
+      const response = await fetch('/api/calculators/standalone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          calculatorId: calculator.id,
+          regenerate: true
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setStandaloneUrl(data.standaloneUrl);
+        setDisplayMode('standalone');
+      } else {
+        console.error('Failed to generate standalone calculator:', data.error);
+      }
+    } catch (error) {
+      console.error('Failed to generate standalone calculator:', error);
+    } finally {
+      setGeneratingStandalone(false);
+    }
+  };
+
+  // Check for standalone on component mount
+  useEffect(() => {
+    if (calculator.calculatorType === 'code') {
+      checkStandaloneCalculator();
+    }
+  }, [calculator.id]);
 
   const renderCalculatorContent = () => {
     // If it's a URL-based calculator
@@ -95,38 +153,104 @@ export default function CalculatorClient({ calculator }: CalculatorClientProps) 
     if (calculator.calculatorType === 'code' && calculator.codeContent) {
       return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {/* Header */}
+          {/* Header with display mode controls */}
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {calculator.name}
-            </h2>
-            <p className="text-gray-600 text-sm mt-1">
-              {calculator.description}
-            </p>
-            {calculator.artifactUrl && (
-              <p className="text-xs text-gray-500 mt-2">
-                Originally created with{' '}
-                <a 
-                  href={calculator.artifactUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-600 hover:text-purple-800"
-                >
-                  Claude AI
-                </a>
-              </p>
-            )}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {calculator.name}
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  {calculator.description}
+                </p>
+                {calculator.artifactUrl && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Originally created with{' '}
+                    <a 
+                      href={calculator.artifactUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-600 hover:text-purple-800"
+                    >
+                      Claude AI
+                    </a>
+                  </p>
+                )}
+              </div>
+              
+              {/* Display mode controls */}
+              <div className="ml-4 flex flex-col sm:flex-row gap-2">
+                {standaloneUrl && (
+                  <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                    <button
+                      onClick={() => setDisplayMode('iframe')}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${
+                        displayMode === 'iframe'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      Embedded
+                    </button>
+                    <button
+                      onClick={() => setDisplayMode('standalone')}
+                      className={`px-3 py-1 text-xs font-medium transition-colors ${
+                        displayMode === 'standalone'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      Standalone
+                    </button>
+                  </div>
+                )}
+                
+                {standaloneUrl && (
+                  <button
+                    onClick={() => window.open(standaloneUrl, '_blank')}
+                    className="inline-flex items-center px-3 py-1 text-xs font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open
+                  </button>
+                )}
+                
+                {!standaloneUrl && calculator.fileName && /\.(tsx|ts|jsx|js)$/.test(calculator.fileName) && (
+                  <button
+                    onClick={generateStandaloneCalculator}
+                    disabled={generatingStandalone}
+                    className="inline-flex items-center px-3 py-1 text-xs font-medium text-green-600 bg-green-50 rounded-md hover:bg-green-100 transition-colors disabled:opacity-50"
+                  >
+                    {generatingStandalone ? (
+                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Monitor className="h-3 w-3 mr-1" />
+                    )}
+                    {generatingStandalone ? 'Generating...' : 'Generate Page'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Calculator content */}
           <div className="p-0">
-            <iframe
-              srcDoc={calculator.codeContent}
-              className="w-full border-0"
-              style={{ minHeight: '600px', height: '80vh' }}
-              title={calculator.name}
-              sandbox="allow-scripts allow-same-origin allow-forms"
-            />
+            {displayMode === 'standalone' && standaloneUrl ? (
+              <iframe
+                src={standaloneUrl}
+                className="w-full border-0"
+                style={{ minHeight: '600px', height: '80vh' }}
+                title={calculator.name}
+              />
+            ) : (
+              <iframe
+                srcDoc={calculator.codeContent}
+                className="w-full border-0"
+                style={{ minHeight: '600px', height: '80vh' }}
+                title={calculator.name}
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+            )}
           </div>
         </div>
       );

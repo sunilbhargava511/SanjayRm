@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { calculatorService } from '@/lib/calculator-service';
 import { ClaudeArtifactProcessor, claudeArtifactUtils } from '@/lib/claude-artifact-processor';
 import { CalculatorAnalyzer } from '@/lib/calculator-analyzer';
+import { reactToHtmlConverter } from '@/lib/react-to-html-converter';
 import { initializeDatabase } from '@/lib/database';
 
 // Initialize database on first API call
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
     let codeContent = '';
     let fileName = '';
     let processedArtifactUrl = '';
+    let fileExtension = '';
 
     // Auto-analyze calculator if requested (and name/description are missing)
     if (autoAnalyze === 'true' && (!name || !description)) {
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
       
       // Validate file type
       const allowedExtensions = ['.tsx', '.ts', '.js', '.jsx', '.html', '.htm'];
-      const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+      fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
       
       if (!allowedExtensions.includes(fileExtension)) {
         return NextResponse.json(
@@ -83,8 +85,19 @@ export async function POST(request: NextRequest) {
 
       // Process different file types
       if (fileExtension === '.tsx' || fileExtension === '.ts' || fileExtension === '.jsx' || fileExtension === '.js') {
-        // For React components, wrap in HTML
-        codeContent = wrapReactComponentInHTML(fileContent, fileName);
+        // For React components, convert to standalone HTML
+        try {
+          codeContent = await reactToHtmlConverter.convertToStandaloneHtml(
+            fileContent,
+            fileName,
+            name,
+            description
+          );
+        } catch (error) {
+          console.error('React to HTML conversion failed:', error);
+          // Fallback to old wrapper method
+          codeContent = wrapReactComponentInHTML(fileContent, fileName);
+        }
       } else {
         // For HTML files, use as-is
         codeContent = fileContent;
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create calculator
+    // Create calculator first to get ID
     const calculator = await calculatorService.createCalculator({
       name,
       description,
@@ -139,10 +152,37 @@ export async function POST(request: NextRequest) {
       isPublished: true
     });
 
+    // Generate and save standalone HTML file for React components
+    let standaloneUrl: string | null = null;
+    if (fileExtension === '.tsx' || fileExtension === '.ts' || fileExtension === '.jsx' || fileExtension === '.js') {
+      try {
+        // For React components, also create a standalone page
+        const originalContent = file ? await file.text() : (await ClaudeArtifactProcessor.fetchArtifactContent(artifactUrl!))?.content;
+        if (originalContent) {
+          standaloneUrl = await reactToHtmlConverter.processAndSaveCalculator(
+            originalContent,
+            fileName,
+            name,
+            description,
+            calculator.id
+          );
+          
+          console.log(`✅ Standalone calculator saved: ${standaloneUrl}`);
+        }
+      } catch (error) {
+        console.error('Failed to create standalone calculator page:', error);
+        // Don't fail the entire upload if standalone generation fails
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      calculator,
-      message: 'Calculator uploaded and created successfully'
+      calculator: {
+        ...calculator,
+        standaloneUrl
+      },
+      message: 'Calculator uploaded and created successfully',
+      standaloneUrl
     });
 
   } catch (error) {
@@ -160,6 +200,20 @@ export async function POST(request: NextRequest) {
 function wrapReactComponentInHTML(reactCode: string, fileName: string): string {
   // Extract component name from filename
   const componentName = fileName.replace(/\.(tsx|ts|jsx|js)$/, '').replace(/[^a-zA-Z0-9]/g, '');
+  
+  // Clean up the React code to handle ES6 modules and exports
+  const cleanedCode = reactCode
+    .replace(/^import\s+.*?from\s+['"][^'"]*['"];?\s*$/gm, '') // Remove import statements
+    .replace(/^export\s+default\s+/gm, 'window.Calculator = ') // Convert default export
+    .replace(/^export\s+/gm, 'window.') // Convert named exports
+    .replace(/export\s*{\s*([^}]+)\s*}/g, (match, exports) => {
+      // Handle export { Component as default } syntax
+      return exports.split(',').map((exp: string) => {
+        const [name, alias] = exp.split(' as ').map((s: string) => s.trim());
+        const targetName = alias || name;
+        return `window.${targetName} = ${name};`;
+      }).join('\n');
+    });
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -190,11 +244,17 @@ function wrapReactComponentInHTML(reactCode: string, fileName: string): string {
 <body>
     <div id="root"></div>
     
-    <script type="text/babel">
-        ${reactCode}
+    <script>
+        // Mock exports and module for compatibility
+        window.exports = {};
+        window.module = { exports: window.exports };
+    </script>
+    
+    <script type="text/babel" data-presets="react,env">
+        ${cleanedCode}
         
         // Try to find and render the main component
-        const componentNames = ['${componentName}', 'App', 'Calculator', 'default'];
+        const componentNames = ['Calculator', '${componentName}', 'App', 'default'];
         let ComponentToRender = null;
         
         for (const name of componentNames) {
@@ -205,9 +265,10 @@ function wrapReactComponentInHTML(reactCode: string, fileName: string): string {
         }
         
         if (ComponentToRender) {
-            ReactDOM.render(React.createElement(ComponentToRender), document.getElementById('root'));
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(React.createElement(ComponentToRender));
         } else {
-            document.getElementById('root').innerHTML = '<div><h1>Calculator Loaded</h1><p>Component could not be automatically rendered. Please check the console for errors.</p></div>';
+            document.getElementById('root').innerHTML = '<div><h1>Calculator Loaded</h1><p>Component could not be automatically rendered. Available components: ' + Object.keys(window).filter(k => typeof window[k] === 'function' && k.match(/^[A-Z]/)).join(', ') + '</p></div>';
         }
     </script>
 </body>

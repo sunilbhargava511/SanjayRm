@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Save Number Calculator - Retirement Planning India</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom styles for sliders and icons -->
+    <style>
+        /* Custom range slider styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Loading state */
+        .calculating {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Icon styles using Unicode symbols */
+        .icon {
+            display: inline-block;
+            width: 1.25rem;
+            height: 1.25rem;
+            text-align: center;
+            line-height: 1.25rem;
+            font-size: 1rem;
+        }
+        
+        .icon-lg {
+            width: 2rem;
+            height: 2rem;
+            line-height: 2rem;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="max-w-6xl mx-auto p-6">
+        <div class="bg-white rounded-xl shadow-xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+                <div class="flex items-center space-x-3">
+                    <span class="icon-lg">🧮</span>
+                    <div>
+                        <h1 class="text-2xl font-bold">Save Number Calculator</h1>
+                        <p class="text-blue-100">Calculate your monthly savings target for retirement in India</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-8">
+                <!-- Main Content: Inputs on Left, Results on Right -->
+                <div style="display: flex; flex-direction: row; gap: 2rem; flex-wrap: wrap;">
+                    
+                    <!-- LEFT COLUMN - ALL INPUTS -->
+                    <div class="flex-1 space-y-6">
+                        <!-- User Inputs -->
+                        <div class="bg-green-50 rounded-lg p-6 border-l-4 border-green-500">
+                            <h2 class="text-lg font-semibold text-green-800 mb-4 flex items-center">
+                                <span class="icon mr-2">🎯</span>
+                                Your Personal Goals
+                            </h2>
+                            
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Current Age: <span id="current-age-display">22</span> years
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="current-age"
+                                        min="0"
+                                        max="40"
+                                        value="22"
+                                        class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>0</span>
+                                        <span>40</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Retirement Age: <span id="retire-age-display">60</span> years
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="retire-age"
+                                        min="21"
+                                        max="80"
+                                        value="60"
+                                        class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span id="retire-age-min">21</span>
+                                        <span>80</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Target Corpus: ₹<span id="target-corpus-display">1.0</span> Crore (today's value)
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="target-corpus"
+                                        min="0.1"
+                                        max="10"
+                                        step="0.1"
+                                        value="1.0"
+                                        class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>₹0.1 Cr</span>
+                                        <span>₹10 Cr</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Annual Savings Increase: <span id="savings-increase-display">6.0</span>%
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="savings-increase"
+                                        min="5"
+                                        max="30"
+                                        step="0.5"
+                                        value="6.0"
+                                        class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>5%</span>
+                                        <span>30%</span>
+                                    </div>
+                                    <div class="text-xs text-gray-600 mt-1">
+                                        Your contributions grow by this % each year (salary growth, promotions)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Economic Assumptions -->
+                        <div class="bg-orange-50 rounded-lg p-6 border-l-4 border-orange-500">
+                            <h2 class="text-lg font-semibold text-orange-800 mb-4 flex items-center">
+                                <span class="icon mr-2">📈</span>
+                                Economic Assumptions
+                            </h2>
+                            
+                            <div class="space-y-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Annual Inflation: <span id="inflation-display">6.0</span>%
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="inflation"
+                                        min="2"
+                                        max="10"
+                                        step="0.1"
+                                        value="6.0"
+                                        class="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>2%</span>
+                                        <span>10%</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Annual Returns: <span id="returns-display">11.0</span>%
+                                    </label>
+                                    <input
+                                        type="range"
+                                        id="returns"
+                                        min="5"
+                                        max="15"
+                                        step="0.1"
+                                        value="11.0"
+                                        class="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>5%</span>
+                                        <span>15%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN - RESULTS -->
+                    <div class="flex-1 space-y-6">
+                        <div id="results-section" style="display: none;">
+                            <!-- Key Metrics -->
+                            <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6 border-l-4 border-purple-500">
+                                <h2 class="text-xl font-bold text-purple-800 mb-4 flex items-center">
+                                    <span class="icon mr-2">₹</span>
+                                    Your Save Number Results
+                                </h2>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-white rounded-lg p-4 shadow">
+                                        <div class="text-sm text-gray-600">Monthly Save Number</div>
+                                        <div class="text-xl font-bold text-purple-600" id="monthly-contribution">
+                                            ₹0
+                                        </div>
+                                        <div class="text-xs text-gray-500">First year amount</div>
+                                    </div>
+                                    
+                                    <div class="bg-white rounded-lg p-4 shadow">
+                                        <div class="text-sm text-gray-600">Total Invested</div>
+                                        <div class="text-lg font-bold text-blue-600" id="total-invested">
+                                            ₹0
+                                        </div>
+                                        <div class="text-xs text-gray-500">Over <span id="years-span">38</span> years</div>
+                                    </div>
+                                    
+                                    <div class="bg-white rounded-lg p-4 shadow">
+                                        <div class="text-sm text-gray-600">Total Gains</div>
+                                        <div class="text-lg font-bold text-green-600" id="total-gain">
+                                            ₹0
+                                        </div>
+                                        <div class="text-xs text-gray-500">Growth from returns</div>
+                                    </div>
+                                    
+                                    <div class="bg-white rounded-lg p-4 shadow">
+                                        <div class="text-sm text-gray-600">Final Corpus</div>
+                                        <div class="text-lg font-bold text-indigo-600" id="final-nominal">
+                                            ₹0
+                                        </div>
+                                        <div class="text-xs text-gray-500">At age <span id="retire-age-span">60</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Percentage Breakdown -->
+                            <div class="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg p-6 border-l-4 border-cyan-500">
+                                <h2 class="text-lg font-bold text-cyan-800 mb-4 flex items-center">
+                                    <span class="icon mr-2">%</span>
+                                    Corpus Composition at Age <span id="retire-age-breakdown">60</span>
+                                </h2>
+                                
+                                <div class="space-y-4">
+                                    <div class="bg-white rounded-lg p-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-700">Amount Invested</span>
+                                            <span class="text-lg font-bold text-blue-600" id="percent-invested">
+                                                0.0%
+                                            </span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-3">
+                                            <div 
+                                                id="invested-bar"
+                                                class="bg-blue-500 h-3 rounded-full transition-all duration-500"
+                                                style="width: 0%"
+                                            ></div>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1" id="invested-amount">
+                                            ₹0
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-white rounded-lg p-4">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-700">Growth/Returns</span>
+                                            <span class="text-lg font-bold text-green-600" id="percent-gained">
+                                                0.0%
+                                            </span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 rounded-full h-3">
+                                            <div 
+                                                id="gained-bar"
+                                                class="bg-green-500 h-3 rounded-full transition-all duration-500"
+                                                style="width: 0%"
+                                            ></div>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1" id="gained-amount">
+                                            ₹0
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FULL WIDTH YEARLY BREAKDOWN TABLE -->
+                <div id="yearly-breakdown" class="bg-gray-50 rounded-lg p-6" style="display: none;">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Year-by-Year Breakdown</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-200">
+                                    <th class="p-3 text-left">Year</th>
+                                    <th class="p-3 text-right">Amount Invested</th>
+                                    <th class="p-3 text-right">Corpus Gain</th>
+                                    <th class="p-3 text-right">End Corpus (Nominal)</th>
+                                    <th class="p-3 text-right">End Corpus (Real)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearly-table-body">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SaveNumberCalculator {
+            constructor() {
+                // Initialize state variables
+                this.currentAge = 22;
+                this.retireAge = 60;
+                this.targetCorpus = 1.0;
+                this.savingsIncrease = 6.0;
+                this.inflation = 6.0;
+                this.returns = 11.0;
+                this.results = null;
+                this.yearlyData = [];
+
+                // Bind DOM elements
+                this.initializeElements();
+                
+                // Add event listeners
+                this.addEventListeners();
+                
+                // Initial calculation
+                this.calculate();
+            }
+
+            initializeElements() {
+                // Input elements
+                this.currentAgeSlider = document.getElementById('current-age');
+                this.retireAgeSlider = document.getElementById('retire-age');
+                this.targetCorpusSlider = document.getElementById('target-corpus');
+                this.savingsIncreaseSlider = document.getElementById('savings-increase');
+                this.inflationSlider = document.getElementById('inflation');
+                this.returnsSlider = document.getElementById('returns');
+
+                // Display elements for slider values
+                this.currentAgeDisplay = document.getElementById('current-age-display');
+                this.retireAgeDisplay = document.getElementById('retire-age-display');
+                this.targetCorpusDisplay = document.getElementById('target-corpus-display');
+                this.savingsIncreaseDisplay = document.getElementById('savings-increase-display');
+                this.inflationDisplay = document.getElementById('inflation-display');
+                this.returnsDisplay = document.getElementById('returns-display');
+
+                // Result elements
+                this.resultsSection = document.getElementById('results-section');
+                this.yearlyBreakdown = document.getElementById('yearly-breakdown');
+            }
+
+            addEventListeners() {
+                this.currentAgeSlider.addEventListener('input', (e) => {
+                    this.currentAge = parseInt(e.target.value);
+                    this.currentAgeDisplay.textContent = this.currentAge;
+                    this.updateRetireAgeMin();
+                    this.calculate();
+                });
+
+                this.retireAgeSlider.addEventListener('input', (e) => {
+                    this.retireAge = parseInt(e.target.value);
+                    this.retireAgeDisplay.textContent = this.retireAge;
+                    this.calculate();
+                });
+
+                this.targetCorpusSlider.addEventListener('input', (e) => {
+                    this.targetCorpus = parseFloat(e.target.value);
+                    this.targetCorpusDisplay.textContent = this.targetCorpus.toFixed(1);
+                    this.calculate();
+                });
+
+                this.savingsIncreaseSlider.addEventListener('input', (e) => {
+                    this.savingsIncrease = parseFloat(e.target.value);
+                    this.savingsIncreaseDisplay.textContent = this.savingsIncrease.toFixed(1);
+                    this.calculate();
+                });
+
+                this.inflationSlider.addEventListener('input', (e) => {
+                    this.inflation = parseFloat(e.target.value);
+                    this.inflationDisplay.textContent = this.inflation.toFixed(1);
+                    this.calculate();
+                });
+
+                this.returnsSlider.addEventListener('input', (e) => {
+                    this.returns = parseFloat(e.target.value);
+                    this.returnsDisplay.textContent = this.returns.toFixed(1);
+                    this.calculate();
+                });
+            }
+
+            updateRetireAgeMin() {
+                this.retireAgeSlider.min = this.currentAge + 1;
+                document.getElementById('retire-age-min').textContent = this.currentAge + 1;
+                
+                if (this.retireAge <= this.currentAge) {
+                    this.retireAge = this.currentAge + 1;
+                    this.retireAgeSlider.value = this.retireAge;
+                    this.retireAgeDisplay.textContent = this.retireAge;
+                }
+            }
+
+            // Format currency for Indian context
+            formatINR(amount) {
+                if (amount >= 10000000) {
+                    return `₹${(amount / 10000000).toFixed(2)} Cr`;
+                } else if (amount >= 100000) {
+                    return `₹${(amount / 100000).toFixed(2)} L`;
+                } else {
+                    return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+                }
+            }
+
+            // Core calculation function - exactly as in React version
+            calculateSaveNumber() {
+                const years = this.retireAge - this.currentAge;
+                const inflationDecimal = this.inflation / 100;
+                const savingsIncreaseDecimal = this.savingsIncrease / 100;
+                const returnDecimal = this.returns / 100;
+                const monthlyReturn = Math.pow(1 + returnDecimal, 1/12) - 1;
+                const targetRealRupees = this.targetCorpus * 10000000; // 1 crore = 10,000,000
+                
+                const simulate = (firstYearMonthly) => {
+                    let balance = 0;
+                    const yearlyBreakdown = [];
+                    let totalInvested = 0;
+                    let totalGain = 0;
+                    
+                    for (let year = 0; year < years; year++) {
+                        const beginBalance = balance;
+                        const monthlyContribution = firstYearMonthly * Math.pow(1 + savingsIncreaseDecimal, year);
+                        let yearInvested = 0;
+                        let yearGain = 0;
+                        
+                        // 12 months of contributions and growth
+                        for (let month = 0; month < 12; month++) {
+                            balance += monthlyContribution; // Beginning of month contribution
+                            yearInvested += monthlyContribution;
+                            totalInvested += monthlyContribution;
+                            
+                            const gain = balance * monthlyReturn;
+                            balance += gain;
+                            yearGain += gain;
+                            totalGain += gain;
+                        }
+                        
+                        const endNominal = balance;
+                        const endReal = endNominal / Math.pow(1 + inflationDecimal, year + 1);
+                        
+                        yearlyBreakdown.push({
+                            year: year + 1,
+                            beginCorpus: beginBalance,
+                            invested: yearInvested,
+                            gain: yearGain,
+                            endNominal: endNominal,
+                            endReal: endReal
+                        });
+                    }
+                    
+                    return { finalBalance: balance, yearlyBreakdown, totalInvested, totalGain };
+                };
+                
+                const getFinalReal = (monthly) => {
+                    const { finalBalance } = simulate(monthly);
+                    return finalBalance / Math.pow(1 + inflationDecimal, years);
+                };
+                
+                // Bisection method to find required monthly contribution
+                let low = 0;
+                let high = 1000;
+                
+                // Find upper bound
+                while (getFinalReal(high) < targetRealRupees) {
+                    high *= 2;
+                    if (high > 1000000) break;
+                }
+                
+                // Bisection
+                let monthly = 0;
+                for (let i = 0; i < 50; i++) {
+                    monthly = (low + high) / 2;
+                    const realValue = getFinalReal(monthly);
+                    
+                    if (Math.abs(realValue - targetRealRupees) < 1) {
+                        break;
+                    }
+                    
+                    if (realValue < targetRealRupees) {
+                        low = monthly;
+                    } else {
+                        high = monthly;
+                    }
+                }
+                
+                const finalSimulation = simulate(monthly);
+                const finalNominal = finalSimulation.finalBalance;
+                const finalReal = finalNominal / Math.pow(1 + inflationDecimal, years);
+                const percentInvested = (finalSimulation.totalInvested / finalNominal) * 100;
+                const percentGained = (finalSimulation.totalGain / finalNominal) * 100;
+                
+                return {
+                    monthlyContribution: monthly,
+                    totalInvested: finalSimulation.totalInvested,
+                    totalGain: finalSimulation.totalGain,
+                    finalNominal: finalNominal,
+                    finalReal: finalReal,
+                    percentInvested: percentInvested,
+                    percentGained: percentGained,
+                    yearlyData: finalSimulation.yearlyBreakdown
+                };
+            }
+
+            calculate() {
+                if (this.retireAge > this.currentAge && this.targetCorpus > 0) {
+                    this.results = this.calculateSaveNumber();
+                    this.yearlyData = this.results.yearlyData;
+                    this.updateUI();
+                }
+            }
+
+            updateUI() {
+                if (!this.results) {
+                    this.resultsSection.style.display = 'none';
+                    this.yearlyBreakdown.style.display = 'none';
+                    return;
+                }
+
+                // Show results sections
+                this.resultsSection.style.display = 'block';
+                this.yearlyBreakdown.style.display = 'block';
+
+                // Update key metrics
+                document.getElementById('monthly-contribution').textContent = this.formatINR(this.results.monthlyContribution);
+                document.getElementById('total-invested').textContent = this.formatINR(this.results.totalInvested);
+                document.getElementById('total-gain').textContent = this.formatINR(this.results.totalGain);
+                document.getElementById('final-nominal').textContent = this.formatINR(this.results.finalNominal);
+
+                // Update years display
+                const years = this.retireAge - this.currentAge;
+                document.getElementById('years-span').textContent = years;
+                document.getElementById('retire-age-span').textContent = this.retireAge;
+                document.getElementById('retire-age-breakdown').textContent = this.retireAge;
+
+                // Update percentage breakdown
+                document.getElementById('percent-invested').textContent = this.results.percentInvested.toFixed(1) + '%';
+                document.getElementById('percent-gained').textContent = this.results.percentGained.toFixed(1) + '%';
+                
+                document.getElementById('invested-bar').style.width = this.results.percentInvested + '%';
+                document.getElementById('gained-bar').style.width = this.results.percentGained + '%';
+                
+                document.getElementById('invested-amount').textContent = this.formatINR(this.results.totalInvested);
+                document.getElementById('gained-amount').textContent = this.formatINR(this.results.totalGain);
+
+                // Update yearly breakdown table
+                this.updateYearlyTable();
+            }
+
+            updateYearlyTable() {
+                const tbody = document.getElementById('yearly-table-body');
+                tbody.innerHTML = '';
+
+                // Show first 10 years
+                const displayData = this.yearlyData.slice(0, 10);
+                
+                displayData.forEach((row) => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b hover:bg-gray-100';
+                    tr.innerHTML = `
+                        <td class="p-3 font-medium">${row.year}</td>
+                        <td class="p-3 text-right">${this.formatINR(row.invested)}</td>
+                        <td class="p-3 text-right text-green-600">${this.formatINR(row.gain)}</td>
+                        <td class="p-3 text-right font-medium">${this.formatINR(row.endNominal)}</td>
+                        <td class="p-3 text-right text-blue-600">${this.formatINR(row.endReal)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Add "more years" row if needed
+                if (this.yearlyData.length > 10) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td colspan="5" class="p-3 text-center text-gray-500 italic">
+                            ... and ${this.yearlyData.length - 10} more years
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            }
+        }
+
+        // Initialize calculator when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new SaveNumberCalculator();
+        });
+    </script>
+</body>
+</html>
