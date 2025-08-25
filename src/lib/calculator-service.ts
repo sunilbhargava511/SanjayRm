@@ -13,7 +13,6 @@ export class CalculatorService {
     orderIndex?: number;
     calculatorType?: 'url' | 'code';
     codeContent?: string;
-    artifactUrl?: string;
     fileName?: string;
     isPublished?: boolean;
   }): Promise<Calculator> {
@@ -43,7 +42,6 @@ export class CalculatorService {
       description: calculatorData.description,
       calculatorType,
       codeContent: calculatorData.codeContent || null,
-      artifactUrl: calculatorData.artifactUrl || null,
       fileName: calculatorData.fileName || null,
       orderIndex,
       active: true,

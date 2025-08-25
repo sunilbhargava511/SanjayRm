@@ -163,16 +163,16 @@ export default function CalculatorClient({ calculator }: CalculatorClientProps) 
                 <p className="text-gray-600 text-sm mt-1">
                   {calculator.description}
                 </p>
-                {calculator.artifactUrl && (
+                {(calculator.calculatorType as string) === 'url' && calculator.url && (
                   <p className="text-xs text-gray-500 mt-2">
-                    Originally created with{' '}
+                    Calculator Link:{' '}
                     <a 
-                      href={calculator.artifactUrl}
+                      href={calculator.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-600 hover:text-purple-800"
                     >
-                      Claude AI
+                      {calculator.url}
                     </a>
                   </p>
                 )}

@@ -267,7 +267,6 @@ export interface Calculator {
   description: string;
   calculatorType: 'url' | 'code';
   codeContent: string | null;
-  artifactUrl: string | null;
   fileName: string | null;
   orderIndex: number;
   active: boolean;

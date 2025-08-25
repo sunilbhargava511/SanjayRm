@@ -240,7 +240,6 @@ export const calculators = sqliteTable('calculators', {
   description: text('description').notNull(),
   calculatorType: text('calculator_type').notNull().default('url'), // 'url' | 'code'
   codeContent: text('code_content'), // Stores HTML/CSS/JS code for local calculators
-  artifactUrl: text('artifact_url'), // Original Claude artifact URL for reference
   fileName: text('file_name'), // For tracking uploaded files
   orderIndex: integer('order_index').notNull().default(0),
   active: integer('active', { mode: 'boolean' }).default(true),

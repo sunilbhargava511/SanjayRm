@@ -1,5 +1,4 @@
 import { getClaudeService } from './claude';
-import { ClaudeArtifactProcessor } from './claude-artifact-processor';
 
 export interface CalculatorAnalysis {
   name: string;
@@ -69,31 +68,32 @@ ${codeContent.substring(0, 8000)}`; // Limit code length for token efficiency
     }
   }
 
-  static async analyzeClaudeArtifact(artifactUrl: string): Promise<CalculatorAnalysis> {
+  static async analyzeCalculatorUrl(calculatorUrl: string): Promise<CalculatorAnalysis> {
     try {
-      const artifact = await ClaudeArtifactProcessor.fetchArtifactContent(artifactUrl);
-      if (!artifact) {
-        throw new Error('Could not fetch artifact content');
-      }
-
-      // Use artifact title and content for analysis
-      const analysis = await this.analyzeCalculatorCode(artifact.content, artifact.title);
+      // For URL-based calculators, generate basic analysis based on URL
+      const url = new URL(calculatorUrl);
+      const hostname = url.hostname;
+      const pathname = url.pathname;
       
-      // If the artifact has a good title, use it as a fallback for the name
-      if (artifact.title && analysis.confidence === 'low') {
-        analysis.name = this.cleanArtifactTitle(artifact.title);
-        analysis.confidence = 'medium';
-      }
+      // Generate name from URL or domain
+      const name = this.extractNameFromUrl(calculatorUrl);
+      const description = `A calculator hosted at ${hostname}. ${this.generateUrlDescription(calculatorUrl)}`;
+      const type = this.inferTypeFromUrl(calculatorUrl);
       
-      return analysis;
+      return {
+        name,
+        description,
+        type,
+        confidence: 'medium'
+      };
       
     } catch (error) {
-      console.error('Claude artifact analysis failed:', error);
+      console.error('Calculator URL analysis failed:', error);
       
-      // Fallback analysis for artifacts
+      // Fallback analysis for URLs
       return {
-        name: 'Claude Artifact Calculator',
-        description: 'A calculator imported from a Claude artifact.',
+        name: 'External Calculator',
+        description: 'A calculator hosted on an external website.',
         type: 'general',
         confidence: 'low'
       };
@@ -220,27 +220,100 @@ ${codeContent.substring(0, 8000)}`; // Limit code length for token efficiency
       .trim();
   }
 
-  private static cleanArtifactTitle(title: string): string {
-    return title
-      .replace(/\s+/g, ' ')
-      .replace(/^[^a-zA-Z0-9]+/, '')
-      .replace(/[^a-zA-Z0-9\s]+$/, '')
-      .trim()
-      || 'Claude Artifact Calculator';
+  private static extractNameFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const hostname = urlObj.hostname;
+      
+      // Try to extract meaningful name from path
+      const pathSegments = pathname.split('/').filter(segment => segment.length > 0);
+      const lastSegment = pathSegments[pathSegments.length - 1];
+      
+      if (lastSegment && lastSegment !== 'index.html') {
+        // Clean up the last path segment
+        const name = lastSegment
+          .replace(/\.(html|htm|php|asp|aspx)$/i, '')
+          .replace(/[-_]/g, ' ')
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          .replace(/\b\w/g, l => l.toUpperCase())
+          .trim();
+        
+        if (name.length > 2) {
+          return name + ' Calculator';
+        }
+      }
+      
+      // Fall back to domain-based name
+      const domainName = hostname
+        .replace(/^www\./, '')
+        .replace(/\.(com|org|net|edu|gov)$/i, '')
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+      
+      return domainName + ' Calculator';
+      
+    } catch (error) {
+      return 'External Calculator';
+    }
+  }
+
+  private static generateUrlDescription(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname.toLowerCase();
+      
+      if (pathname.includes('mortgage') || pathname.includes('loan')) {
+        return 'Calculate loan payments and mortgage details.';
+      } else if (pathname.includes('investment') || pathname.includes('compound')) {
+        return 'Calculate investment growth and compound interest.';
+      } else if (pathname.includes('tax') || pathname.includes('income')) {
+        return 'Calculate taxes and income-related scenarios.';
+      } else if (pathname.includes('retirement') || pathname.includes('401k')) {
+        return 'Plan for retirement savings and income.';
+      } else if (pathname.includes('budget') || pathname.includes('expense')) {
+        return 'Track and manage budget allocations.';
+      } else {
+        return 'Perform financial calculations and analysis.';
+      }
+      
+    } catch (error) {
+      return 'Perform financial calculations and analysis.';
+    }
+  }
+
+  private static inferTypeFromUrl(url: string): string {
+    const lowerUrl = url.toLowerCase();
+    
+    if (lowerUrl.includes('mortgage') || lowerUrl.includes('loan')) {
+      return 'loan';
+    } else if (lowerUrl.includes('investment') || lowerUrl.includes('compound') || lowerUrl.includes('interest')) {
+      return 'investment';
+    } else if (lowerUrl.includes('tax') || lowerUrl.includes('income')) {
+      return 'tax';
+    } else if (lowerUrl.includes('retirement') || lowerUrl.includes('401k') || lowerUrl.includes('pension')) {
+      return 'retirement';
+    } else if (lowerUrl.includes('budget') || lowerUrl.includes('expense')) {
+      return 'budget';
+    } else if (lowerUrl.includes('insurance') || lowerUrl.includes('premium')) {
+      return 'insurance';
+    } else {
+      return 'financial';
+    }
   }
 
   // Helper method for client-side use
   static async analyzeFromFormData(formData: FormData): Promise<CalculatorAnalysis> {
     const file = formData.get('file') as File;
-    const artifactUrl = formData.get('artifactUrl') as string;
+    const calculatorUrl = formData.get('url') as string;
 
     if (file && file.size > 0) {
       const fileContent = await file.text();
       return this.analyzeCalculatorCode(fileContent, file.name);
-    } else if (artifactUrl) {
-      return this.analyzeClaudeArtifact(artifactUrl);
+    } else if (calculatorUrl) {
+      return this.analyzeCalculatorUrl(calculatorUrl);
     } else {
-      throw new Error('No file or artifact URL provided for analysis');
+      throw new Error('No file or calculator URL provided for analysis');
     }
   }
 }

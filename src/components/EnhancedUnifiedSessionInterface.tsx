@@ -516,7 +516,7 @@ export default function EnhancedUnifiedSessionInterface() {
                   {/* Open-ended conversation */}
                   <div className="group relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-blue-200 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20">
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-blue-200 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 min-h-[500px] flex flex-col">
                       <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <MessageSquare className="w-8 h-8 text-blue-600" />
                       </div>
@@ -545,7 +545,7 @@ export default function EnhancedUnifiedSessionInterface() {
                       <button
                         onClick={handleStartOpenEndedSession}
                         disabled={isInitializing}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 disabled:opacity-50 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 disabled:opacity-50 font-semibold text-lg shadow-lg hover:shadow-xl group mt-auto"
                       >
                         {isInitializing ? (
                           <div className="flex items-center justify-center gap-2">
@@ -565,7 +565,7 @@ export default function EnhancedUnifiedSessionInterface() {
                   {/* Lesson-based learning */}
                   <div className="group relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-green-200 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20">
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-green-200 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20 min-h-[500px] flex flex-col">
                       <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <BookOpen className="w-8 h-8 text-green-600" />
                       </div>
@@ -593,7 +593,7 @@ export default function EnhancedUnifiedSessionInterface() {
                       
                       <button
                         onClick={() => setCurrentMode('lesson_selection')}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-xl hover:from-green-700 hover:to-emerald-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                        className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-700 text-white rounded-xl hover:from-green-700 hover:to-emerald-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group mt-auto"
                       >
                         <div className="flex items-center justify-center gap-2">
                           Browse Lessons
@@ -606,7 +606,7 @@ export default function EnhancedUnifiedSessionInterface() {
                   {/* Financial Calculators */}
                   <div className="group relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-purple-200 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:border-purple-200 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 min-h-[500px] flex flex-col">
                       <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <Calculator className="w-8 h-8 text-purple-600" />
                       </div>
@@ -634,7 +634,7 @@ export default function EnhancedUnifiedSessionInterface() {
                       
                       <button
                         onClick={() => setCurrentMode('calculators')}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-xl hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group"
+                        className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white rounded-xl hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl group mt-auto"
                       >
                         <div className="flex items-center justify-center gap-2">
                           Browse Calculators

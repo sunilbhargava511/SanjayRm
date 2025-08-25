@@ -29,17 +29,10 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
         color: 'purple',
         isExternal: false
       };
-    } else if (calculator.artifactUrl) {
-      return {
-        icon: Zap,
-        label: 'Claude Artifact',
-        color: 'blue',
-        isExternal: true
-      };
     } else {
       return {
         icon: Globe,
-        label: 'External Tool',
+        label: 'Calculator Link',
         color: 'blue',
         isExternal: true
       };
@@ -100,15 +93,6 @@ export default function CalculatorCard({ calculator, className = '' }: Calculato
           {calculator.description}
         </p>
 
-        {/* Additional metadata for code-based calculators */}
-        {calculator.calculatorType === 'code' && calculator.artifactUrl && (
-          <div className="mb-4 text-xs text-gray-500 bg-gray-50 rounded-md p-2">
-            <div className="flex items-center gap-1">
-              <Zap className="w-3 h-3" />
-              <span>Originally created with Claude AI</span>
-            </div>
-          </div>
-        )}
         
         {/* Launch Button */}
         <div className="flex items-center justify-between">

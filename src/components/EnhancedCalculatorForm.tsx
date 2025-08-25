@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Upload, Link, Code, AlertTriangle, CheckCircle, Eye, Globe, Zap } from 'lucide-react';
 import CodeEditor from './CodeEditor';
-import { ClaudeArtifactProcessor, claudeArtifactUtils } from '@/lib/claude-artifact-processor';
 import type { Calculator } from '@/lib/database/schema';
 
 interface EnhancedCalculatorFormProps {
@@ -27,7 +26,6 @@ export default function EnhancedCalculatorForm({
     description: '',
     url: '',
     codeContent: '',
-    artifactUrl: '',
     isPublished: true
   });
   
@@ -41,7 +39,6 @@ export default function EnhancedCalculatorForm({
   } | null>(null);
   const [urlValidation, setUrlValidation] = useState<{
     isValid: boolean;
-    isClaudeArtifact: boolean;
     message?: string;
   } | null>(null);
 
@@ -53,7 +50,6 @@ export default function EnhancedCalculatorForm({
         description: calculator.description || '',
         url: calculator.url || '',
         codeContent: calculator.codeContent || '',
-        artifactUrl: calculator.artifactUrl || '',
         isPublished: calculator.isPublished !== false
       });
       setMode(calculator.calculatorType === 'code' ? 'code' : 'url');
@@ -64,16 +60,12 @@ export default function EnhancedCalculatorForm({
   useEffect(() => {
     if (formData.url) {
       const isValidUrl = /^https?:\/\/.+/.test(formData.url);
-      const isClaudeArtifact = claudeArtifactUtils.isClaudeUrl(formData.url);
       
       setUrlValidation({
         isValid: isValidUrl,
-        isClaudeArtifact,
-        message: isClaudeArtifact 
-          ? 'Claude artifact detected - can be processed for local deployment'
-          : isValidUrl 
-            ? 'Valid URL - will be embedded or linked externally'
-            : 'Please enter a valid URL starting with http:// or https://'
+        message: isValidUrl 
+          ? 'Valid URL - will be linked externally'
+          : 'Please enter a valid URL starting with http:// or https://'
       });
     } else {
       setUrlValidation(null);
@@ -84,58 +76,6 @@ export default function EnhancedCalculatorForm({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const processClaudeArtifact = async () => {
-    if (!formData.url || !claudeArtifactUtils.isClaudeUrl(formData.url)) return;
-    
-    try {
-      setIsProcessing(true);
-      setProcessingResult(null);
-
-      // Fetch artifact content
-      const artifact = await ClaudeArtifactProcessor.fetchArtifactContent(formData.url);
-      if (!artifact) {
-        throw new Error('Could not fetch Claude artifact content');
-      }
-
-      // Process for deployment
-      const processed = ClaudeArtifactProcessor.processArtifactForDeployment(artifact);
-      
-      if (processed.hasErrors) {
-        setProcessingResult({
-          success: false,
-          errors: processed.errors,
-          warnings: processed.warnings
-        });
-        return;
-      }
-
-      // Auto-populate form fields
-      setFormData(prev => ({
-        ...prev,
-        name: prev.name || processed.title,
-        codeContent: processed.htmlContent,
-        artifactUrl: formData.url
-      }));
-
-      // Switch to code mode
-      setMode('code');
-
-      setProcessingResult({
-        success: true,
-        title: processed.title,
-        content: processed.htmlContent,
-        warnings: processed.warnings
-      });
-
-    } catch (error) {
-      setProcessingResult({
-        success: false,
-        errors: [error instanceof Error ? error.message : 'Failed to process Claude artifact']
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const validateForm = () => {
     const errors: string[] = [];
@@ -178,11 +118,9 @@ export default function EnhancedCalculatorForm({
       isPublished: formData.isPublished,
       ...(mode === 'url' ? {
         url: formData.url.trim(),
-        artifactUrl: formData.artifactUrl || null,
         codeContent: null
       } : {
         codeContent: formData.codeContent,
-        artifactUrl: formData.artifactUrl || null,
         url: null
       })
     };
@@ -198,11 +136,12 @@ export default function EnhancedCalculatorForm({
   };
 
   const validateCode = (code: string) => {
-    const validation = claudeArtifactUtils.validateHtml(code);
+    // Basic HTML validation
+    const hasHtmlStructure = code.includes('<html') || code.includes('<!DOCTYPE');
     return {
-      valid: validation.valid,
-      errors: validation.valid ? [] : validation.issues,
-      warnings: validation.issues.filter(issue => !issue.includes('Missing') && !issue.includes('Potential XSS'))
+      valid: hasHtmlStructure,
+      errors: hasHtmlStructure ? [] : ['Code should contain HTML structure'],
+      warnings: []
     };
   };
 
@@ -245,7 +184,7 @@ export default function EnhancedCalculatorForm({
         </div>
         <p className="text-xs text-gray-500 mt-2">
           {mode === 'url' 
-            ? 'Link to external calculators or Claude artifacts'
+            ? 'Link to external calculators'
             : 'Deploy custom calculator code on your server'
           }
         </p>
@@ -296,21 +235,10 @@ export default function EnhancedCalculatorForm({
               id="url"
               value={formData.url}
               onChange={(e) => handleInputChange('url', e.target.value)}
-              className="w-full p-3 pr-12 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              placeholder="https://claude.ai/public/artifacts/... or https://example.com/calculator"
+              className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              placeholder="https://example.com/calculator"
               required
             />
-            {urlValidation?.isClaudeArtifact && (
-              <button
-                type="button"
-                onClick={processClaudeArtifact}
-                disabled={isProcessing}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                title="Process Claude artifact for local deployment"
-              >
-                <Zap className="h-4 w-4" />
-              </button>
-            )}
           </div>
           
           {urlValidation && (
@@ -327,11 +255,6 @@ export default function EnhancedCalculatorForm({
                 )}
                 {urlValidation.message}
               </div>
-              {urlValidation.isClaudeArtifact && (
-                <div className="mt-2 text-xs">
-                  Click the ⚡ button to extract and deploy locally, or keep as external link.
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -349,19 +272,6 @@ export default function EnhancedCalculatorForm({
             onValidate={validateCode}
           />
           
-          {formData.artifactUrl && (
-            <div className="mt-2 text-xs text-gray-500">
-              Original Claude artifact: {' '}
-              <a 
-                href={formData.artifactUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-purple-600 hover:text-purple-800"
-              >
-                {formData.artifactUrl}
-              </a>
-            </div>
-          )}
         </div>
       )}
 

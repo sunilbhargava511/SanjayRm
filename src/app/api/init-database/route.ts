@@ -339,7 +339,6 @@ Generate a detailed session summary that would be valuable for the user''s finan
         description TEXT NOT NULL,
         calculator_type TEXT NOT NULL DEFAULT 'url',
         code_content TEXT,
-        artifact_url TEXT,
         file_name TEXT,
         order_index INTEGER NOT NULL DEFAULT 0,
         active INTEGER DEFAULT 1,
@@ -352,13 +351,13 @@ Generate a detailed session summary that would be valuable for the user''s finan
     // Insert sample calculators
     console.log('📊 Inserting sample calculators...');
     sqlite.exec(`
-      INSERT OR IGNORE INTO calculators (id, name, url, description, calculator_type, artifact_url, order_index) VALUES 
-      ('calc_claude_test', 'Investment Growth Calculator', 'https://claude.ai/public/artifacts/24299228-9301-464d-ae2d-b367413a6cc7', 'A comprehensive investment calculator that shows how your investments can grow over time with compound interest and regular contributions.', 'url', 'https://claude.ai/public/artifacts/24299228-9301-464d-ae2d-b367413a6cc7', 0),
-      ('calc_mortgage', 'Mortgage Calculator', 'https://www.calculator.net/mortgage-calculator.html', 'Calculate monthly mortgage payments, total interest, and amortization schedules for your home loan.', 'url', NULL, 1),
-      ('calc_retirement', 'Retirement Calculator', 'https://www.calculator.net/retirement-calculator.html', 'Plan for your retirement by calculating how much you need to save and when you can retire comfortably.', 'url', NULL, 2),
-      ('calc_compound_interest', 'Compound Interest Calculator', 'https://www.calculator.net/interest-calculator.html', 'See how your investments can grow over time with the power of compound interest.', 'url', NULL, 3),
-      ('calc_budget', 'Budget Calculator', 'https://www.calculator.net/budget-calculator.html', 'Create and track a monthly budget to manage your income and expenses effectively.', 'url', NULL, 4),
-      ('calc_debt_payoff', 'Debt Payoff Calculator', 'https://www.calculator.net/debt-payoff-calculator.html', 'Create a strategy to pay off your debts faster and save on interest payments.', 'url', NULL, 5);
+      INSERT OR IGNORE INTO calculators (id, name, url, description, calculator_type, order_index) VALUES 
+      ('calc_investment', 'Investment Growth Calculator', 'https://www.calculator.net/investment-calculator.html', 'A comprehensive investment calculator that shows how your investments can grow over time with compound interest and regular contributions.', 'url', 0),
+      ('calc_mortgage', 'Mortgage Calculator', 'https://www.calculator.net/mortgage-calculator.html', 'Calculate monthly mortgage payments, total interest, and amortization schedules for your home loan.', 'url', 1),
+      ('calc_retirement', 'Retirement Calculator', 'https://www.calculator.net/retirement-calculator.html', 'Plan for your retirement by calculating how much you need to save and when you can retire comfortably.', 'url', 2),
+      ('calc_compound_interest', 'Compound Interest Calculator', 'https://www.calculator.net/interest-calculator.html', 'See how your investments can grow over time with the power of compound interest.', 'url', 3),
+      ('calc_budget', 'Budget Calculator', 'https://www.calculator.net/budget-calculator.html', 'Create and track a monthly budget to manage your income and expenses effectively.', 'url', 4),
+      ('calc_debt_payoff', 'Debt Payoff Calculator', 'https://www.calculator.net/debt-payoff-calculator.html', 'Create a strategy to pay off your debts faster and save on interest payments.', 'url', 5);
     `);
 
     // Verify tables were created

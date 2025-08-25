@@ -9,7 +9,7 @@ interface CalculatorUploadProps {
 export default function CalculatorUpload({ onUploadSuccess, className = '' }: CalculatorUploadProps) {
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
   const [file, setFile] = useState<File | null>(null);
-  const [artifactUrl, setArtifactUrl] = useState('');
+  const [calculatorUrl, setCalculatorUrl] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -34,7 +34,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
   };
 
   const handleUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setArtifactUrl(event.target.value);
+    setCalculatorUrl(event.target.value);
     setError(null);
     
     // Clear existing data when URL changes
@@ -42,10 +42,10 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
     setDescription('');
     
     // Auto-analyze if enabled and URL is provided
-    if (event.target.value && autoAnalyze && event.target.value.includes('claude.ai')) {
+    if (event.target.value && autoAnalyze) {
       // Delay analysis slightly to let the user finish typing
       setTimeout(() => {
-        if (event.target.value === artifactUrl) {
+        if (event.target.value === calculatorUrl) {
           analyzeCalculator();
         }
       }, 1000);
@@ -53,7 +53,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
   };
 
   const analyzeCalculator = async () => {
-    if (!file && !artifactUrl) return;
+    if (!file && !calculatorUrl) return;
     
     setIsAnalyzing(true);
     setError(null);
@@ -63,8 +63,8 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
       
       if (uploadMode === 'file' && file) {
         formData.append('file', file);
-      } else if (uploadMode === 'url' && artifactUrl) {
-        formData.append('artifactUrl', artifactUrl);
+      } else if (uploadMode === 'url' && calculatorUrl) {
+        formData.append('url', calculatorUrl);
       } else {
         return;
       }
@@ -114,10 +114,10 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
         }
         formData.append('file', file);
       } else {
-        if (!artifactUrl) {
-          throw new Error('Please provide a Claude artifact URL');
+        if (!calculatorUrl) {
+          throw new Error('Please provide a calculator URL');
         }
-        formData.append('artifactUrl', artifactUrl);
+        formData.append('url', calculatorUrl);
       }
 
       const response = await fetch('/api/calculators/upload', {
@@ -133,7 +133,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
 
       setSuccess('Calculator uploaded successfully!');
       setFile(null);
-      setArtifactUrl('');
+      setCalculatorUrl('');
       setName('');
       setDescription('');
       
@@ -160,7 +160,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Upload Calculator</h3>
-          <p className="text-sm text-gray-600">Add a new calculator from file or Claude artifact</p>
+          <p className="text-sm text-gray-600">Add a new calculator from file or URL</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
           }`}
         >
           <Link className="w-4 h-4" />
-          Claude Artifact
+          Calculator URL
         </button>
       </div>
 
@@ -220,15 +220,15 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
           </div>
         ) : (
           <div>
-            <label htmlFor="artifactUrl" className="block text-sm font-medium text-gray-700 mb-2">
-              Claude Artifact URL
+            <label htmlFor="calculatorUrl" className="block text-sm font-medium text-gray-700 mb-2">
+              Calculator URL
             </label>
             <input
-              id="artifactUrl"
+              id="calculatorUrl"
               type="url"
-              value={artifactUrl}
+              value={calculatorUrl}
               onChange={handleUrlChange}
-              placeholder="https://claude.ai/public/artifacts/..."
+              placeholder="https://example.com/calculator"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required={uploadMode === 'url'}
             />
@@ -256,7 +256,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
         </div>
 
         {/* Manual Analysis Button */}
-        {!autoAnalyze && (file || artifactUrl) && (
+        {!autoAnalyze && (file || calculatorUrl) && (
           <button
             type="button"
             onClick={analyzeCalculator}
@@ -340,7 +340,7 @@ export default function CalculatorUpload({ onUploadSuccess, className = '' }: Ca
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={isUploading || isAnalyzing || (!file && !artifactUrl) || (!autoAnalyze && (!name || !description))}
+          disabled={isUploading || isAnalyzing || (!file && !calculatorUrl) || (!autoAnalyze && (!name || !description))}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isUploading ? (

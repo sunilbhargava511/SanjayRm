@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculatorService } from '@/lib/calculator-service';
-import { ClaudeArtifactProcessor, claudeArtifactUtils } from '@/lib/claude-artifact-processor';
 import { CalculatorAnalyzer } from '@/lib/calculator-analyzer';
 import { reactToHtmlConverter } from '@/lib/react-to-html-converter';
 import { initializeDatabase } from '@/lib/database';
@@ -21,14 +20,14 @@ export async function POST(request: NextRequest) {
     
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const artifactUrl = formData.get('artifactUrl') as string;
+    const calculatorUrl = formData.get('url') as string;
     let name = formData.get('name') as string;
     let description = formData.get('description') as string;
     const autoAnalyze = formData.get('autoAnalyze') as string;
 
     let codeContent = '';
     let fileName = '';
-    let processedArtifactUrl = '';
+    let processedCalculatorUrl = '';
     let fileExtension = '';
 
     // Auto-analyze calculator if requested (and name/description are missing)
@@ -39,8 +38,8 @@ export async function POST(request: NextRequest) {
         if (file && file.size > 0) {
           const fileContent = await file.text();
           analysis = await CalculatorAnalyzer.analyzeCalculatorCode(fileContent, file.name);
-        } else if (artifactUrl) {
-          analysis = await CalculatorAnalyzer.analyzeClaudeArtifact(artifactUrl);
+        } else if (calculatorUrl) {
+          analysis = await CalculatorAnalyzer.analyzeCalculatorUrl(calculatorUrl);
         }
         
         if (analysis) {
@@ -103,40 +102,23 @@ export async function POST(request: NextRequest) {
         codeContent = fileContent;
       }
     }
-    // Handle Claude artifact URL
-    else if (artifactUrl) {
-      if (!claudeArtifactUtils.isClaudeUrl(artifactUrl)) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid Claude artifact URL format' },
-          { status: 400 }
-        );
-      }
-
+    // Handle calculator URL (no special processing)
+    else if (calculatorUrl) {
+      // For URL-based calculators, we don't process content
+      // Just validate the URL format
       try {
-        const artifact = await ClaudeArtifactProcessor.fetchArtifactContent(artifactUrl);
-        if (!artifact) {
-          return NextResponse.json(
-            { success: false, error: 'Could not fetch artifact content' },
-            { status: 404 }
-          );
-        }
-
-        const processed = ClaudeArtifactProcessor.processArtifactForDeployment(artifact);
-        codeContent = processed.htmlContent;
-        fileName = ClaudeArtifactProcessor.generateSafeFilename(artifact.title, artifact.id);
-        processedArtifactUrl = artifactUrl;
+        new URL(calculatorUrl);
+        processedCalculatorUrl = calculatorUrl;
+        fileName = 'external-calculator';
       } catch (error) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: `Failed to process Claude artifact: ${error instanceof Error ? error.message : 'Unknown error'}` 
-          },
-          { status: 500 }
+          { success: false, error: 'Invalid calculator URL format' },
+          { status: 400 }
         );
       }
     } else {
       return NextResponse.json(
-        { success: false, error: 'Either a file or Claude artifact URL must be provided' },
+        { success: false, error: 'Either a file or calculator URL must be provided' },
         { status: 400 }
       );
     }
@@ -145,10 +127,10 @@ export async function POST(request: NextRequest) {
     const calculator = await calculatorService.createCalculator({
       name,
       description,
-      calculatorType: 'code',
-      codeContent,
-      fileName,
-      artifactUrl: processedArtifactUrl || undefined,
+      calculatorType: calculatorUrl ? 'url' : 'code',
+      codeContent: calculatorUrl ? undefined : codeContent,
+      fileName: calculatorUrl ? undefined : fileName,
+      url: calculatorUrl || undefined,
       isPublished: true
     });
 
@@ -157,7 +139,7 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.tsx' || fileExtension === '.ts' || fileExtension === '.jsx' || fileExtension === '.js') {
       try {
         // For React components, also create a standalone page
-        const originalContent = file ? await file.text() : (await ClaudeArtifactProcessor.fetchArtifactContent(artifactUrl!))?.content;
+        const originalContent = file ? await file.text() : null;
         if (originalContent) {
           standaloneUrl = await reactToHtmlConverter.processAndSaveCalculator(
             originalContent,

@@ -5,11 +5,11 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const artifactUrl = formData.get('artifactUrl') as string;
+    const calculatorUrl = formData.get('url') as string;
 
-    if (!file && !artifactUrl) {
+    if (!file && !calculatorUrl) {
       return NextResponse.json(
-        { success: false, error: 'Either a file or Claude artifact URL must be provided' },
+        { success: false, error: 'Either a file or calculator URL must be provided' },
         { status: 400 }
       );
     }
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
       const fileContent = await file.text();
       analysis = await CalculatorAnalyzer.analyzeCalculatorCode(fileContent, fileName);
-    } else if (artifactUrl) {
-      analysis = await CalculatorAnalyzer.analyzeClaudeArtifact(artifactUrl);
+    } else if (calculatorUrl) {
+      analysis = await CalculatorAnalyzer.analyzeCalculatorUrl(calculatorUrl);
     }
 
     return NextResponse.json({

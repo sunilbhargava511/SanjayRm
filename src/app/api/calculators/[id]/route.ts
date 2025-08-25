@@ -55,7 +55,7 @@ export async function PUT(
   try {
     const resolvedParams = await params;
     const body = await request.json();
-    const { name, url, description, calculatorType, codeContent, artifactUrl, fileName, orderIndex, active, isPublished } = body;
+    const { name, url, description, calculatorType, codeContent, fileName, orderIndex, active, isPublished } = body;
 
     // Validate required fields
     if (!name || !description) {
@@ -116,9 +116,6 @@ export async function PUT(
       updateData.fileName = fileName || null;
     }
 
-    if (artifactUrl) {
-      updateData.artifactUrl = artifactUrl;
-    }
 
     const updatedCalculator = await db
       .update(calculators)

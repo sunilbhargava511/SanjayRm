@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
           orderIndex, 
           calculatorType, 
           codeContent, 
-          artifactUrl, 
           fileName, 
           isPublished 
         } = data;
@@ -104,7 +103,6 @@ export async function POST(request: NextRequest) {
           orderIndex,
           calculatorType: type,
           codeContent,
-          artifactUrl,
           fileName,
           isPublished
         });
